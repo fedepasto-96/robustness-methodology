@@ -1,0 +1,1711 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>TPI Robustness &amp; Stability — Interactive Methodology</title>
+<script>
+  window.MathJax = { tex: { inlineMath: [['\\(', '\\)']], displayMath: [['$$','$$']] },
+                     svg: { fontCache: 'global' } };
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js" async></script>
+<style>
+:root{
+  --bg:#0e1117; --panel:#161b24; --panel2:#1c2230; --ink:#e7edf5; --muted:#9aa7b8;
+  --line:#2a3342; --accent:#5aa9ff; --accent2:#8b7bff;
+  --robust:#31c48d; --border:#f6b73c; --fragile:#f0616a; --gate:#f0616a;
+  --good:#31c48d; --ok:#f6b73c; --bad:#f0616a; --chip:#243040;
+  --mono:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.6;font-size:16px}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+.wrap{display:grid;grid-template-columns:250px 1fr;max-width:1280px;margin:0 auto}
+nav{position:sticky;top:0;align-self:start;height:100vh;overflow:auto;padding:22px 14px;border-right:1px solid var(--line);font-size:13.5px}
+nav h4{color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-size:11px;margin:16px 0 6px}
+nav a{display:block;color:var(--muted);padding:3px 8px;border-radius:6px}
+nav a:hover{background:var(--panel);color:var(--ink);text-decoration:none}
+nav a.part{color:var(--accent2);font-weight:600;margin-top:6px}
+main{padding:34px 46px 120px;min-width:0}
+h1{font-size:30px;line-height:1.25;margin:0 0 6px}
+h2{font-size:23px;margin:46px 0 10px;padding-top:14px;border-top:1px solid var(--line)}
+h3{font-size:18px;margin:26px 0 8px;color:#cdd8e6}
+h2 .n,h1 .sub{color:var(--muted)}
+h2 .n{font:600 15px/1 var(--mono);color:var(--accent);margin-right:10px}
+p{margin:10px 0}
+.lede{font-size:18px;color:#cbd6e4}
+.muted{color:var(--muted)}
+code,.k{font-family:var(--mono);font-size:.92em;background:var(--chip);padding:1px 6px;border-radius:5px;color:#d6e2f2}
+.pill{display:inline-block;font:600 11px/1 var(--sans);padding:4px 9px;border-radius:999px;letter-spacing:.03em}
+.pill.robust{background:rgba(49,196,141,.16);color:var(--robust);border:1px solid rgba(49,196,141,.4)}
+.pill.border{background:rgba(246,183,60,.15);color:var(--border);border:1px solid rgba(246,183,60,.4)}
+.pill.fragile{background:rgba(240,97,106,.15);color:var(--fragile);border:1px solid rgba(240,97,106,.4)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px 22px;margin:18px 0}
+.lab{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:14px;margin:22px 0;overflow:hidden}
+.lab-h{display:flex;align-items:center;gap:10px;padding:12px 18px;border-bottom:1px solid var(--line);background:rgba(90,169,255,.06)}
+.lab-h .tag{font:700 10px/1 var(--mono);letter-spacing:.12em;color:var(--accent);border:1px solid var(--accent);padding:4px 7px;border-radius:6px}
+.lab-h b{font-size:14.5px}
+.lab-body{padding:18px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+@media(max-width:900px){.wrap{grid-template-columns:1fr}nav{display:none}.grid2,.grid3{grid-template-columns:1fr}main{padding:22px}}
+.ctrl{margin:10px 0}
+.ctrl label{display:flex;justify-content:space-between;font-size:13px;color:var(--muted);margin-bottom:3px}
+.ctrl label .val{font-family:var(--mono);color:var(--ink)}
+input[type=range]{width:100%;accent-color:var(--accent);height:4px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{background:var(--panel);color:var(--muted);border:0;padding:6px 12px;font-size:13px;cursor:pointer}
+.seg button.on{background:var(--accent);color:#08131f;font-weight:600}
+.badge-big{font:700 22px/1 var(--sans);padding:12px 18px;border-radius:12px;display:inline-flex;align-items:center;gap:10px}
+.trace{font-family:var(--mono);font-size:12.5px;margin-top:12px}
+.trace .row{display:flex;gap:8px;align-items:center;padding:4px 8px;border-radius:6px;margin:2px 0;background:var(--panel2)}
+.trace .dot{width:9px;height:9px;border-radius:50%;flex:none}
+.dot.pass{background:var(--good)} .dot.fail{background:var(--bad)} .dot.na{background:#4a5566}
+.trace .why{margin-left:auto;color:var(--muted)}
+table{border-collapse:collapse;width:100%;font-size:14px;margin:12px 0}
+th,td{border:1px solid var(--line);padding:7px 10px;text-align:left}
+th{background:var(--panel2);color:#cdd8e6;font-weight:600}
+td.c,th.c{text-align:center}
+.note{border-left:3px solid var(--accent);background:rgba(90,169,255,.06);padding:10px 14px;border-radius:0 8px 8px 0;margin:14px 0;font-size:14.5px}
+.warn{border-left:3px solid var(--border);background:rgba(246,183,60,.07)}
+.kbd{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.flow{display:flex;flex-wrap:wrap;gap:0;align-items:stretch;margin:8px 0}
+.stage{flex:1;min-width:150px;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:12px;margin:4px;cursor:pointer;transition:.15s}
+.stage:hover{border-color:var(--accent);transform:translateY(-2px)}
+.stage.sel{border-color:var(--accent);box-shadow:0 0 0 2px rgba(90,169,255,.25)}
+.stage .st{font:700 11px/1 var(--mono);color:var(--accent);letter-spacing:.08em}
+.stage h5{margin:6px 0 4px;font-size:14px}
+.stage p{margin:0;font-size:12.5px;color:var(--muted)}
+.detail{background:var(--panel);border:1px dashed var(--line);border-radius:10px;padding:14px 16px;margin-top:8px;font-size:14px;min-height:20px}
+.ladder .step{display:flex;gap:12px;align-items:center;padding:9px 12px;border:1px solid var(--line);border-radius:9px;margin:6px 0;background:var(--panel2)}
+.ladder .step.hit{border-color:var(--good);background:rgba(49,196,141,.08)}
+.ladder .step.skip{opacity:.42}
+.ladder .idx{font:700 12px/1 var(--mono);color:var(--accent)}
+svg text{font-family:var(--sans)}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);margin-top:6px}
+.legend span{display:inline-flex;align-items:center;gap:5px}
+.sw{width:11px;height:11px;border-radius:3px;display:inline-block}
+.foot{margin-top:60px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:13px}
+.aff{border:1px solid var(--line);border-left:4px solid var(--accent2);border-radius:0 10px 10px 0;background:var(--panel);padding:14px 18px;margin:14px 0}
+.aff .d{font:600 12px/1 var(--mono);color:var(--accent2)}
+.aff h4{margin:6px 0}
+.tiny{font-size:12.5px}
+/* --- mathematics display --- */
+.formula{background:#0b0f16;border:1px solid var(--line);border-left:3px solid var(--accent2);border-radius:10px;
+  padding:6px 18px;margin:16px 0;overflow-x:auto;overflow-y:hidden}
+.formula.tight{padding:2px 18px}
+mjx-container{color:#eaf1fb}
+.derive{list-style:none;padding:0;margin:12px 0;font-size:14px}
+.derive li{padding:7px 12px;border-left:2px solid var(--line);margin:6px 0;background:var(--panel2);border-radius:0 8px 8px 0}
+.derive li b{color:var(--accent)}
+.mathgrid{display:grid;grid-template-columns:1.05fr .95fr;gap:20px;align-items:start}
+@media(max-width:900px){.mathgrid{grid-template-columns:1fr}}
+.readout{font:700 30px/1 var(--mono);color:var(--accent);margin:6px 0}
+.readout small{font:400 12px/1 var(--sans);color:var(--muted);display:block;margin-top:4px}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0}
+.chip2{font:600 12px/1 var(--mono);background:var(--chip);border:1px solid var(--line);border-radius:6px;padding:5px 9px;color:#d6e2f2}
+canvas{max-width:100%;background:transparent;border-radius:8px}
+.varkey{display:inline-block;font-family:var(--mono);color:var(--accent2);font-size:.92em}
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav>
+  <div style="font:700 14px/1.3 var(--sans);color:var(--ink)">TPI Robustness<br/><span class="muted tiny">Interactive Methodology</span></div>
+  <h4>Mathematics</h4>
+  <a href="#mathematics" class="part">M · The math, in full &#9654;</a>
+  <a href="#lab-sharpe-sec">Sharpe</a>
+  <a href="#lab-sortino-sec">Sortino</a>
+  <a href="#lab-omega-sec">Omega</a>
+  <a href="#lab-pf-sec">Profit Factor</a>
+  <a href="#lab-annual-sec">Annualization</a>
+  <a href="#lab-wfe-sec">Walk-forward (WFE)</a>
+  <a href="#lab-cov-sec">Coefficient of variation</a>
+  <a href="#lab-mc-sec">Monte-Carlo</a>
+  <a href="#lab-coh-sec">Coherence &amp; cube</a>
+  <a href="#lab-dsr-sec">Deflated Sharpe</a>
+  <h4>Principles</h4>
+  <a href="#tldr">The one-paragraph version</a>
+  <a href="#twoaxis">1 · Robustness vs Stability</a>
+  <a href="#floors">2 · The edge floors</a>
+  <a href="#verdict" class="part">3 · Live verdict calculator &#9654;</a>
+  <a href="#stability">4 · Stability = the FRAGILE floor</a>
+  <a href="#wfe">5 · Conditional walk-forward</a>
+  <a href="#cov">6 · Parameter CoV</a>
+  <a href="#annual">7 · Annualization basis</a>
+  <h4>The optimizer</h4>
+  <a href="#pipeline" class="part">8 · Pipeline &#9654;</a>
+  <a href="#search">9 · Two-regime search</a>
+  <a href="#objective">10 · Objective &amp; what we rejected</a>
+  <a href="#descend">11 · Size-descending fallback</a>
+  <a href="#ceiling">12 · The asset ceiling</a>
+  <h4>Record</h4>
+  <a href="#decisions">13 · Affirmed decisions</a>
+</nav>
+<main>
+
+<h1>Robustness &amp; Stability of Auto-Generated TPIs<br/><span class="sub tiny muted">how the principles are defined, and how the optimizer is built to seek them — a living, interactive spec</span></h1>
+<p class="lede">Every knob below is wired to the <em>actual</em> production logic. Drag them and the verdict recomputes exactly the way <code>fep_robustness.fep_verdict()</code> does in the codebase. Nothing here is a mock-up of the math — it <em>is</em> the math.</p>
+
+<div class="card" id="tldr">
+  <h3 style="margin-top:0">The one-paragraph version</h3>
+  <p>A TPI (a committee of indicators voting one direction) earns a deployment label from two independent questions.
+  <b>Robustness</b> asks whether a <em>real edge</em> survives being perturbed — the same edge shows up at the tuned
+  point, out-of-sample, across a parameter sweep, and across time folds. <b>Stability</b> asks whether the
+  <em>behaviour</em> holds up under those same perturbations, <em>even if the edge is modest</em>. The key asymmetry:
+  <span class="pill robust">robust &rArr; stable</span>, never the reverse. So the verdict is a ladder —
+  <span class="pill robust">ROBUST</span> (edge that persists <em>and</em> is stable),
+  <span class="pill border">BORDERLINE</span> (stable, but the edge is incomplete: decaying, recent-only, or unverifiable),
+  <span class="pill fragile">FRAGILE</span> (fails any stability gate, or has no edge anywhere). The optimizer's job is to
+  <em>strive</em> for a ROBUST 5-indicator TPI, fall back to STABLE, and only then reduce complexity — never to ship a FRAGILE one.</p>
+  <p class="muted tiny">This document is the source of truth for the theory. The live verdict is computed by
+  <code>fep_robustness.fep_verdict()</code>; the optimizer by <code>tpi_autogen</code>. Both are reconciled to what you read here.</p>
+</div>
+
+<h2 class="section" id="mathematics"><span class="n">M</span>The mathematics, in full</h2>
+<p class="lede">Nothing below is hand-wavy: each quantity is shown as the exact formula the code computes, then made draggable so you can watch the math move. Aimed at any engineer — rigorous, not deep.</p>
+<h3 id="math-M1" style="color:var(--accent2);border-top:1px solid var(--line);padding-top:16px">The measurement math — what a &ldquo;good&rdquo; number is</h3>
+<p class="muted">Every verdict starts from four risk-adjusted ratios. Here is exactly how each is computed in <code>backtester.py</code> (including the non-textbook choices), made visual.</p>
+
+<h3 id="lab-sharpe-sec">The Sharpe ratio — daily edge, blown up by √P</h3>
+<p class="lede" style="font-size:16px">Mean excess return per unit of total volatility, then scaled by the square root of time.</p>
+  <div class="formula">$$ \text{Sharpe} = \sqrt{P}\;\frac{\overline{(r - r_f/P)}}{\sigma_{\text{pop}}(r - r_f/P)} $$</div>
+  <div class="formula">$$ P = \begin{cases} 365 & \text{crypto (default)} \\ 252 & \text{stocks} \end{cases}\qquad \sigma_{\text{pop}}=\sqrt{\tfrac{1}{N}\textstyle\sum(x_i-\bar x)^2}\ (\text{ddof}=0) $$</div>
+  <div class="formula">$$ \underbrace{\frac{\overline{e}}{\sigma_{\text{pop}}(e)}}_{\text{daily Sharpe}}\ \times\ \sqrt{P}\ =\ \text{annual Sharpe} $$</div>
+<p>The code's <code>_sharpe</code> forms the <b>excess series</b> <code>e = r − r_f/P</code> first: the annual risk-free rate is de-annualized by <em>simple division</em> (not geometrically) so it lives on the same per-bar scale as the returns. Mean and dispersion are then computed on that <b>same</b> excess series.</p><p>The denominator is the <b>population</b> standard deviation, <code>ddof=0</code> (divide by N), not the textbook sample <code>ddof=1</code>. Since bars are daily, <code>P</code> equals bars-per-year, and the periodicity annualization factor is exactly <code>√P</code> — read at call time from the mutable global <code>_ACTIVE_PPY</code> (365 for 24/7 crypto, 252 for stocks via the <code>annualization()</code> context manager).</p><p>The <b>daily</b> Sharpe <span class="muted">ē / σ(e)</span> is a dimensionless signal-to-noise ratio of one bar. Annualizing sums <code>P</code> i.i.d. bars: mean scales like <code>P</code> and std like <code>√P</code>, so their ratio scales like <code>P/√P = √P</code>. That <code>√P</code> blow-up is the entire difference between the daily and headline numbers — and why switching 252↔365 alone moves the reported Sharpe by <code>√(365/252) ≈ 1.20×</code> on identical returns.</p>
+<div class="lab" id="mathlab-sharpe">
+  <div class="lab-h"><span class="tag">MATH</span><b>The Sharpe ratio — daily edge, blown up by √P</b></div>
+  <div class="lab-body">
+    <div class="mathgrid">
+      <div><div class="ctrl"><label>Daily mean μ <span class="val" id="sharpe-muv"></span></label><input type="range" id="sharpe-mu" min="-0.5" max="1.5" step="0.01" value="0.6"></div>
+<div class="ctrl"><label>Daily vol σ <span class="val" id="sharpe-sigv"></span></label><input type="range" id="sharpe-sig" min="0.2" max="4.0" step="0.05" value="1.5"></div>
+<div class="ctrl"><label>Annual r<sub>f</sub> <span class="val" id="sharpe-rfv"></span></label><input type="range" id="sharpe-rf" min="0" max="10" step="0.25" value="0"></div>
+<div class="ctrl"><label>Sample N <span class="val" id="sharpe-nv"></span></label><input type="range" id="sharpe-n" min="30" max="1200" step="10" value="500"></div>
+<div class="ctrl"><label>Annualization basis P</label><div class="seg"><button id="sharpe-p365" type="button">365 · crypto</button><button id="sharpe-p252" type="button">252 · stocks</button></div></div>
+<div class="ctrl"><button id="sharpe-resample" type="button">Resample draws</button></div></div>
+      <div><h2 class="sr-only">Interactive Sharpe ratio: a simulated daily excess-return histogram with an overlaid normal curve, showing the daily Sharpe and its √P annualization.</h2>
+<canvas id="sharpe-cv" width="720" height="300"></canvas>
+<div id="sharpe-out" style="margin-top:10px;font:13px/1.5 ui-monospace,Menlo,Consolas,monospace;color:#e7edf5"></div></div>
+    </div>
+    <p class="note tiny" style="margin-bottom:0"><b>What it shows:</b> The reported Sharpe is just the daily signal-to-noise ratio ē/σ multiplied by √P — so flipping the annualization basis 252↔365 rescales the headline number by √(365/252)≈1.20 on identical returns, with nothing about the strategy having changed.</p>
+  </div>
+</div>
+<script>
+(function(){
+  var cv=document.getElementById('sharpe-cv'); if(!cv) return;
+  var ctx=cv.getContext('2d'), W=cv.width, H=cv.height;
+  var ink='#e7edf5',muted='#9aa7b8',accent='#5aa9ff',good='#31c48d',warn='#f6b73c',bad='#f0616a',line='#2a3342';
+  var P=365, seed=12345, samp=null;
+  function rng(){seed=(seed*1103515245+12345)&0x7fffffff;return seed/0x7fffffff;}
+  function gauss(){var u=1-rng(),v=1-rng();return Math.sqrt(-2*Math.log(u))*Math.cos(6.28318530718*v);}
+  function el(id){return document.getElementById(id);}
+  function draw(){
+    var mu=+el('sharpe-mu').value, sig=+el('sharpe-sig').value, rf=+el('sharpe-rf').value, N=+el('sharpe-n').value|0;
+    el('sharpe-muv').textContent=mu.toFixed(2)+'%'; el('sharpe-sigv').textContent=sig.toFixed(2)+'%';
+    el('sharpe-rfv').textContent=rf.toFixed(2)+'%'; el('sharpe-nv').textContent=N;
+    el('sharpe-p365').style.opacity=P===365?1:0.45; el('sharpe-p252').style.opacity=P===252?1:0.45;
+    // draw N standard-normal shocks -> excess = mu - rf/P + sig*z  (percent units)
+    var rfpp=rf/P, e=new Array(N);
+    if(!samp||samp.length!==N){samp=new Array(N);for(var i=0;i<N;i++)samp[i]=gauss();}
+    for(var i=0;i<N;i++){e[i]=(mu-rfpp)+sig*samp[i];}
+    // empirical mean + POPULATION std (ddof=0)
+    var m=0;for(i=0;i<N;i++)m+=e[i];m/=N;
+    var s2=0;for(i=0;i<N;i++){var d=e[i]-m;s2+=d*d;}var sd=Math.sqrt(s2/N);
+    var daily=sd>0?m/sd:NaN, ann=daily*Math.sqrt(P);
+    // theoretical (population, exact) for reference
+    var thD=sig>0?(mu-rfpp)/sig:NaN, thA=thD*Math.sqrt(P);
+    // ---- histogram ----
+    ctx.clearRect(0,0,W,H);
+    var pad=44, x0=pad, x1=W-pad, y0=H-40, y1=20;
+    var lo=Math.min.apply(null,e), hi=Math.max.apply(null,e), rng2=hi-lo||1; lo-=rng2*0.08; hi+=rng2*0.08;
+    var nb=48, bins=new Array(nb).fill(0);
+    for(i=0;i<N;i++){var b=Math.floor((e[i]-lo)/(hi-lo)*nb);if(b<0)b=0;if(b>=nb)b=nb-1;bins[b]++;}
+    var mx=Math.max.apply(null,bins)||1;
+    var toX=function(v){return x0+(v-lo)/(hi-lo)*(x1-x0);};
+    // axis
+    ctx.strokeStyle=line;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x0,y0);ctx.lineTo(x1,y0);ctx.stroke();
+    // bars
+    var bw=(x1-x0)/nb;
+    for(var k=0;k<nb;k++){var h=bins[k]/mx*(y0-y1);ctx.fillStyle='rgba(90,169,255,0.32)';ctx.fillRect(x0+k*bw+0.5,y0-h,bw-1,h);}
+    // overlaid normal curve (pop mean m, pop sd sd), scaled to bin area
+    var binW=(hi-lo)/nb, peak=1/(sd*Math.sqrt(6.28318530718));
+    ctx.strokeStyle=warn;ctx.lineWidth=2;ctx.beginPath();
+    for(var px=x0;px<=x1;px++){var v=lo+(px-x0)/(x1-x0)*(hi-lo);var pdf=Math.exp(-0.5*Math.pow((v-m)/sd,2))/(sd*Math.sqrt(6.28318530718));var yy=y0-(pdf/peak)*(y0-y1)*(mx>0?(N*binW*peak)/mx:1)/((N*binW*peak)/mx||1)*1;yy=y0-(pdf/peak)*(y0-y1)*0.92;px===x0?ctx.moveTo(px,yy):ctx.lineTo(px,yy);}
+    ctx.stroke();
+    // mean line
+    ctx.strokeStyle=good;ctx.lineWidth=1.5;ctx.setLineDash([4,3]);ctx.beginPath();ctx.moveTo(toX(m),y1);ctx.lineTo(toX(m),y0);ctx.stroke();ctx.setLineDash([]);
+    // +/-1 sigma band
+    ctx.fillStyle='rgba(240,97,106,0.10)';ctx.fillRect(toX(m-sd),y1,toX(m+sd)-toX(m-sd),y0-y1);
+    ctx.strokeStyle=bad;ctx.lineWidth=1;
+    [m-sd,m+sd].forEach(function(v){ctx.beginPath();ctx.moveTo(toX(v),y1);ctx.lineTo(toX(v),y0);ctx.stroke();});
+    // labels
+    ctx.fillStyle=muted;ctx.font='11px ui-monospace,Menlo,Consolas,monospace';ctx.textAlign='center';
+    ctx.fillText('0',toX(0),y0+16);
+    ctx.fillStyle=good;ctx.fillText('mean '+m.toFixed(3)+'%',toX(m),y1-6);
+    ctx.fillStyle=bad;ctx.fillText('-σ',toX(m-sd),y0+16);ctx.fillText('+σ',toX(m+sd),y0+16);
+    ctx.textAlign='left';ctx.fillStyle=muted;ctx.fillText('per-bar excess return e = r - r_f/P  (%)',x0,H-8);
+    // ---- readout: make the sqrt(P) blow-up explicit ----
+    var f=Math.sqrt(P);
+    el('sharpe-out').innerHTML=
+      '<span style="color:'+muted+'">excess mean ē</span> = <b>'+m.toFixed(4)+'%</b>'+
+      '   <span style="color:'+muted+'">pop σ (ddof=0)</span> = <b>'+sd.toFixed(4)+'%</b>'+
+      '   <span style="color:'+muted+'">r_f/P</span> = '+rfpp.toFixed(5)+'%<br>'+
+      '<span style="color:'+accent+'">daily Sharpe</span> = ē/σ = <b>'+(isFinite(daily)?daily.toFixed(4):'NaN')+'</b>'+
+      '   <span style="color:'+muted+'">×√P (√'+P+' = '+f.toFixed(3)+')</span> ⟶ '+
+      '<span style="color:'+good+';font-size:15px"><b>Sharpe = '+(isFinite(ann)?ann.toFixed(3):'NaN')+'</b></span><br>'+
+      '<span style="color:'+muted+'">population truth (exact μ,σ): daily '+(isFinite(thD)?thD.toFixed(4):'NaN')+' → annual '+(isFinite(thA)?thA.toFixed(3):'NaN')+
+      ' · basis P = '+P+(P===365?' (crypto)':' (stocks)')+'</span>';
+  }
+  ['sharpe-mu','sharpe-sig','sharpe-rf'].forEach(function(id){el(id).addEventListener('input',draw);});
+  el('sharpe-n').addEventListener('input',function(){samp=null;draw();});
+  el('sharpe-p365').addEventListener('click',function(){P=365;draw();});
+  el('sharpe-p252').addEventListener('click',function(){P=252;draw();});
+  el('sharpe-resample').addEventListener('click',function(){seed=(Date.now()&0x7fffffff)||7;samp=null;draw();});
+  draw();
+})();
+</script>
+
+
+<h3 id="lab-sortino-sec">Sortino: only the left tail is charged for risk</h3>
+<p class="lede" style="font-size:16px">Same mean, same spread — but Sharpe divides by all volatility, Sortino divides by the RMS of the below-zero returns over all N.</p>
+  <div class="formula">$$ \text{DD} = \sqrt{\dfrac{1}{N}\sum_{i=1}^{N}\big(\min(e_i,0)\big)^2}\,,\qquad e_i = r_i - r_f/\text{ppy} $$</div>
+  <div class="formula">$$ \text{Sortino} = \sqrt{\text{ppy}}\;\dfrac{\overline{e}}{\text{DD}}\,,\qquad \text{Sharpe} = \sqrt{\text{ppy}}\;\dfrac{\overline{e}}{\sigma_{\text{pop}}(e)} $$</div>
+<p>Sharpe treats every deviation from the mean as risk. That is symmetric: a windfall <code>+8%</code> day inflates the denominator exactly as much as a <code>-8%</code> crash. For an investor who only fears losses this over-penalizes upside surprises. Sortino fixes the denominator so <b>only harmful volatility is charged</b>.</p><p>The code (<code>backtester.py:203-215</code>) forms excess returns <code>e = r − r_f/ppy</code>, then <code>neg = e.clip(upper=0)</code> — every positive return is zeroed, every negative kept. Downside deviation is <code>DD = sqrt(mean(neg²))</code>. Two non-textbook choices are load-bearing: the mean divides by <b>all N</b> (not the count of losing days), and deviations are measured from a hard <b>target of 0</b> (not from the subset mean). Both keep <code>DD</code> honestly small — the earlier subset-std form divided by fewer observations and re-centred on the loss mean, shrinking the denominator and inflating Sortino.</p><p>Numerator and annualization are identical to Sharpe: mean excess return, scaled by <code>√ppy</code> (365 crypto, 252 stocks). So <code>Sortino/Sharpe = σ_pop(e)/DD ≥ 1</code> always, and the two <b>diverge exactly as the left tail fattens</b>: a strategy with clustered small losses and rare big gains keeps <code>DD</code> low while <code>σ</code> balloons, so Sortino ≫ Sharpe. This is why the FEP gate floors Sortino at <code>1.0</code> but Sharpe only at <code>0.7</code> (<code>fep_robustness.py:33</code>) — the same edge, read through a downside-only lens, must clear a higher bar.</p>
+<div class="lab" id="mathlab-sortino">
+  <div class="lab-h"><span class="tag">MATH</span><b>Sortino: only the left tail is charged for risk</b></div>
+  <div class="lab-body">
+    <div class="mathgrid">
+      <div><div class="ctrl"><label>Left-tail skew <span class="val" id="sortino-skewv"></span></label><input type="range" id="sortino-skew" min="-100" max="100" value="55"></div><div class="ctrl"><label>Mean drift &nbsp;<span class="val" id="sortino-muv"></span></label><input type="range" id="sortino-mu" min="-30" max="60" value="18"></div><div class="ctrl"><label>Spread &sigma; <span class="val" id="sortino-sigv"></span></label><input type="range" id="sortino-sig" min="20" max="200" value="90"></div><div class="ctrl"><label>Periods/yr (ppy) <span class="val" id="sortino-ppyv"></span></label><div class="seg"><button id="sortino-ppy365" data-ppy="365">365 crypto</button><button id="sortino-ppy252" data-ppy="252">252 stocks</button></div></div></div>
+      <div><canvas id="sortino-cv" width="720" height="330"></canvas><div id="sortino-out" style="margin-top:8px;font:13px ui-monospace,Menlo,monospace;color:#e7edf5;line-height:1.7"></div></div>
+    </div>
+    <p class="note tiny" style="margin-bottom:0"><b>What it shows:</b> Sortino and Sharpe share a numerator; only the denominator differs. As the left tail grows, σ (all volatility) balloons while DD (RMS of below-zero returns over all N) stays small — so Sortino rises above Sharpe by exactly the σ/DD ratio, proving Sortino charges only harmful volatility.</p>
+  </div>
+</div>
+<script>
+(function(){
+  var cv=document.getElementById('sortino-cv'); if(!cv) return;
+  var g=cv.getContext('2d'), W=cv.width, H=cv.height;
+  var ink='#e7edf5',mut='#9aa7b8',acc='#5aa9ff',good='#31c48d',bad='#f0616a',line='#2a3342';
+  var ppy=365;
+  // deterministic sample: fixed unit-normal draws, reshaped by skew/mu/sigma each frame
+  var N=240, z=[], u=1234567;
+  function rnd(){u=(u*1103515245+12345)&0x7fffffff;return u/0x7fffffff;}
+  for(var i=0;i<N;i++){var a=rnd(),b=rnd();z.push(Math.sqrt(-2*Math.log(a+1e-9))*Math.cos(6.2831853*b));}
+  function el(id){return document.getElementById(id);}
+  function build(){
+    var skew=+el('sortino-skew').value/100, mu=+el('sortino-mu').value/10000, sig=+el('sortino-sig').value/10000;
+    el('sortino-skewv').textContent=(skew>=0?'+':'')+skew.toFixed(2)+' (left tail)';
+    el('sortino-muv').textContent=(mu*100).toFixed(2)+'%/day';
+    el('sortino-sigv').textContent=(sig*100).toFixed(2)+'%';
+    el('sortino-ppyv').textContent=ppy;
+    var r=[]; // per-period returns, mean/sigma preserved, skew injected asymmetrically
+    for(var i=0;i<N;i++){
+      var v=z[i]; // skew map: push negatives further out, compress positives (or reverse)
+      var s = v<0 ? v*(1+Math.abs(skew)*1.6) : v/(1+Math.abs(skew)*0.8);
+      if(skew<0){ s = v>0 ? v*(1+Math.abs(skew)*1.6) : v/(1+Math.abs(skew)*0.8); }
+      r.push(mu + sig*s);
+    }
+    return r;
+  }
+  function stats(r){
+    var rf=0, e=r.map(function(x){return x-rf/ppy;});
+    var m=0; for(var i=0;i<N;i++) m+=e[i]; m/=N;
+    var vp=0; for(i=0;i<N;i++){var d=e[i]-m; vp+=d*d;} vp/=N; var sd=Math.sqrt(vp);
+    var ss=0; for(i=0;i<N;i++){var neg=Math.min(e[i],0); ss+=neg*neg;} var dd=Math.sqrt(ss/N);
+    var f=Math.sqrt(ppy);
+    return {e:e,m:m,sd:sd,dd:dd,sharpe:sd>0?f*m/sd:NaN,sortino:dd>0?f*m/dd:NaN};
+  }
+  function draw(){
+    var r=build(), st=stats(r);
+    g.clearRect(0,0,W,H);
+    // histogram of e
+    var lo=-0.06, hi=0.06, B=61, bins=new Array(B).fill(0);
+    for(var i=0;i<N;i++){var x=st.e[i]; if(x<lo)x=lo; if(x>hi)x=hi; var k=Math.floor((x-lo)/(hi-lo)*(B-1)); bins[k]++;}
+    var mx=1; for(i=0;i<B;i++) if(bins[i]>mx)mx=bins[i];
+    var px0=40,px1=W-16,py0=18,py1=H-40, pw=px1-px0, ph=py1-py0;
+    function X(v){return px0+(v-lo)/(hi-lo)*pw;}
+    // baseline (return=0) — the target
+    var zx=X(0);
+    g.strokeStyle=line; g.lineWidth=1; g.strokeRect(px0,py0,pw,ph);
+    // bars: shade below-zero red (charged as downside), above-zero muted
+    var bw=pw/B;
+    for(i=0;i<B;i++){
+      var cx=px0+(i+0.5)*bw, cval=lo+(i+0.5)/(B-1)*(hi-lo);
+      var h=bins[i]/mx*ph, bx=px0+i*bw, by=py1-h;
+      g.fillStyle = cval<0 ? 'rgba(240,97,106,0.85)' : 'rgba(154,167,184,0.35)';
+      g.fillRect(bx,by,Math.max(1,bw-0.6),h);
+    }
+    // target line at 0
+    g.strokeStyle=ink; g.setLineDash([4,3]); g.beginPath(); g.moveTo(zx,py0); g.lineTo(zx,py1); g.stroke(); g.setLineDash([]);
+    // mean marker
+    var mmx=X(st.m); g.strokeStyle=acc; g.lineWidth=2; g.beginPath(); g.moveTo(mmx,py0); g.lineTo(mmx,py1); g.stroke();
+    g.fillStyle=mut; g.font='11px ui-monospace,monospace';
+    g.fillText('target 0',zx+4,py0+12); g.fillStyle=acc; g.fillText('mean ē',mmx+4,py0+26);
+    g.fillStyle=bad; g.fillText('■ min(e,0)² charged as downside',px0+6,py1+24);
+    g.fillStyle=mut;  g.fillText('■ upside — ignored by DD, counted by σ',px0+270,py1+24);
+    // DD vs sigma brackets (span from target)
+    function bracket(val,y,col,lab){var xx=X(val); g.strokeStyle=col; g.lineWidth=2; g.beginPath(); g.moveTo(zx,y); g.lineTo(xx,y); g.moveTo(xx,y-4); g.lineTo(xx,y+4); g.stroke(); g.fillStyle=col; g.fillText(lab,(zx+xx)/2-14,y-6);}
+    bracket(-st.dd,py0+ph*0.30,bad,'DD'); bracket(-st.sd,py0+ph*0.55,mut,'σ');
+    var ratio = st.sortino/st.sharpe;
+    el('sortino-out').innerHTML =
+      'DD = √(mean min(e,0)²) = <b style="color:'+bad+'">'+(st.dd*100).toFixed(3)+'%</b>'+
+      ' &nbsp; σ<sub>pop</sub> = <b style="color:'+mut+'">'+(st.sd*100).toFixed(3)+'%</b>'+
+      ' &nbsp; mean ē = <b style="color:'+acc+'">'+(st.m*100).toFixed(3)+'%</b><br>'+
+      'Sharpe = √ppy·ē/σ = <b style="color:'+ink+'">'+(isNaN(st.sharpe)?'—':st.sharpe.toFixed(3))+'</b>'+
+      ' &nbsp; Sortino = √ppy·ē/DD = <b style="color:'+good+'">'+(isNaN(st.sortino)?'—':st.sortino.toFixed(3))+'</b>'+
+      ' &nbsp; ratio σ/DD = <b style="color:'+good+'">'+(isFinite(ratio)?ratio.toFixed(3):'—')+'×</b>';
+  }
+  ['sortino-skew','sortino-mu','sortino-sig'].forEach(function(id){el(id).addEventListener('input',draw);});
+  function setPPY(p){ppy=p; el('sortino-ppy365').style.opacity=p===365?1:0.5; el('sortino-ppy252').style.opacity=p===252?1:0.5; draw();}
+  el('sortino-ppy365').addEventListener('click',function(){setPPY(365);});
+  el('sortino-ppy252').addEventListener('click',function(){setPPY(252);});
+  setPPY(365);
+})();
+</script>
+
+
+<h3 id="lab-omega-sec">The Omega ratio</h3>
+<p class="lede" style="font-size:16px">Every gain above the line, weighted by how far — over every loss below it</p>
+  <div class="formula">$$ \Omega(\theta) = \dfrac{\sum_{r_i > \theta}(r_i - \theta)}{\sum_{r_i < \theta}(\theta - r_i)} $$</div>
+  <div class="formula">$$ \Omega(\theta) = \dfrac{\int_{\theta}^{\infty}\big(1-F(r)\big)\,dr}{\int_{-\infty}^{\theta}F(r)\,dr} $$</div>
+  <div class="formula">$$ \Omega(\mu)=1 \;\Longleftrightarrow\; \theta=\mathbb{E}[r]\;\;(\text{break-even}) $$</div>
+<p>The discrete form the backtester ships (<code>_omega</code>, <code>backtester.py:218</code>) is a pure ratio of sums: numerator is the total <em>distance</em> of every return that lands strictly above the threshold <span class="muted">θ</span>, denominator the total distance of every return strictly below it. Ties (<code>r == θ</code>) are dropped from both — the code uses strict <code>&gt;</code> and <code>&lt;</code>. With no losses the denominator is 0 and the function returns <code>+inf</code>. The shipped threshold is <code>θ = 0</code>, not the risk-free rate, and nothing is annualized: Ω is dimensionless.</p><p>The integral identity is the reason Ω is more than a dressed-up win/loss count. Integrating the numerator sum by parts turns it into the area of the <b>upper tail</b> of the CDF, <code>∫(1−F)</code> above θ; the denominator becomes the area of the <b>lower tail</b>, <code>∫F</code> below θ. So Ω absorbs the <em>entire shape</em> of the distribution — every moment, skew and fat tails included — whereas Sharpe collapses it to just mean and variance.</p><p>The break-even fact is exact and worth internalizing. Numerator minus denominator equals <code>Σ(rᵢ − θ) = N(μ − θ)</code>. That difference is zero precisely when <span class="muted">θ = μ</span>, and a ratio whose top and bottom are equal is 1. So <b>Ω(θ) = 1 exactly at the mean</b>: slide θ below the mean and Ω &gt; 1, above it and Ω &lt; 1. Drag the line onto the mean marker and watch the readout snap to 1.000.</p><p>In the FEP gate this is a green-vote metric with floor <code>Ω ≥ 1.15</code> (<code>COBRA_RATIO_FLOORS</code>, <code>fep_robustness.py:33</code>) — measured at θ=0, so it asks whether upside mass beats downside mass by a clear 15% margin, not merely whether the strategy is net-positive.</p>
+<div class="lab" id="mathlab-omega">
+  <div class="lab-h"><span class="tag">MATH</span><b>The Omega ratio</b></div>
+  <div class="lab-body">
+    <div class="mathgrid">
+      <div><div class="ctrl" style="display:flex;align-items:center;gap:12px;margin:0 0 10px;">
+  <label style="min-width:150px;font-size:14px;color:#9aa7b8;">Distribution skew <span class="val" id="omega-skv" style="color:#e7edf5;">0.0</span></label>
+  <input type="range" id="omega-sk" min="-1.2" max="1.2" step="0.05" value="0.35" style="flex:1;" />
+</div>
+<div class="ctrl" style="display:flex;align-items:center;gap:12px;margin:0 0 10px;">
+  <label style="min-width:150px;font-size:14px;color:#9aa7b8;">Spread (daily vol) <span class="val" id="omega-sgv" style="color:#e7edf5;">2.0%</span></label>
+  <input type="range" id="omega-sg" min="0.6" max="4.0" step="0.1" value="2.0" style="flex:1;" />
+</div>
+<div class="ctrl" style="display:flex;align-items:center;gap:12px;margin:0 0 4px;">
+  <label style="min-width:150px;font-size:14px;color:#9aa7b8;">Threshold θ <span class="val" id="omega-thv" style="color:#5aa9ff;">0.00%</span></label>
+  <input type="range" id="omega-th" min="-4.0" max="4.0" step="0.05" value="0.0" style="flex:1;" />
+</div>
+<div style="font-size:12px;color:#9aa7b8;margin-top:6px;">Drag the θ slider (or drag directly on the chart). θ=0 is the shipped threshold; the dashed marker is the mean μ where Ω=1.</div></div>
+      <div><div style="display:flex;align-items:baseline;gap:18px;flex-wrap:wrap;margin:0 0 10px;">
+  <div><span style="font-size:13px;color:#9aa7b8;">Ω(θ) = </span><span id="omega-out" style="font-size:26px;font-weight:500;color:#e7edf5;">—</span></div>
+  <div><span style="font-size:12px;color:#31c48d;">gains Σ = </span><span id="omega-g" style="font-size:14px;color:#31c48d;">—</span></div>
+  <div><span style="font-size:12px;color:#f0616a;">losses Σ = </span><span id="omega-l" style="font-size:14px;color:#f0616a;">—</span></div>
+  <div><span style="font-size:12px;color:#9aa7b8;">verdict </span><span id="omega-vf" style="font-size:12px;font-weight:500;">—</span></div>
+</div>
+<canvas id="omega-cv" width="680" height="330" style="width:100%;height:auto;display:block;"></canvas></div>
+    </div>
+    <p class="note tiny" style="margin-bottom:0"><b>What it shows:</b> Omega is the ratio of the whole distribution's upside mass to its downside mass about θ — so it captures skew and fat tails that Sharpe throws away, and it equals exactly 1 when θ sits on the mean.</p>
+  </div>
+</div>
+<script>
+(function(){
+  var cv=document.getElementById('omega-cv'); if(!cv) return;
+  var ctx=cv.getContext('2d'), W=cv.width, H=cv.height;
+  var g=function(id){return document.getElementById(id);};
+  var skE=g('omega-sk'),sgE=g('omega-sg'),thE=g('omega-th');
+  var skv=g('omega-skv'),sgv=g('omega-sgv'),thv=g('omega-thv');
+  var out=g('omega-out'),gO=g('omega-g'),lO=g('omega-l'),vf=g('omega-vf');
+  if(!skE||!sgE||!thE) return;
+  var ink='#e7edf5',mut='#9aa7b8',acc='#5aa9ff',good='#31c48d',warn='#f6b73c',bad='#f0616a',line='#2a3342';
+  var N=4000, rs=[], RMIN=-8, RMAX=8;
+  // deterministic PRNG so readout is reproducible
+  var seed=12345; function rnd(){seed=(seed*1103515245+12345)&0x7fffffff;return seed/0x7fffffff;}
+  function gauss(){var u=Math.max(1e-9,rnd()),v=rnd();return Math.sqrt(-2*Math.log(u))*Math.cos(6.2831853*v);}
+  function build(sk,sg){ rs=[]; var a=sk; // skew-normal-ish via sinh transform
+    for(var i=0;i<N;i++){var z=gauss(); var s= a===0? z : (Math.exp(a*z)-1)/a - a/2; // skewed, re-centered approx
+      var r=s*sg; if(r<RMIN)r=RMIN; if(r>RMAX)r=RMAX; rs.push(r);} }
+  function X(r){return 40+(r-RMIN)/(RMAX-RMIN)*(W-60);}
+  function omega(th){var gp=0,ls=0; for(var i=0;i<rs.length;i++){var r=rs[i]; if(r>th)gp+=r-th; else if(r<th)ls+=th-r;} return {gp:gp,ls:ls,om: ls>0? gp/ls : Infinity};}
+  function mean(){var s=0;for(var i=0;i<rs.length;i++)s+=rs[i];return s/rs.length;}
+  var NB=90;
+  function draw(){
+    var sk=+skE.value, sg=+sgE.value, th=+thE.value;
+    skv.textContent=sk.toFixed(1); sgv.textContent=sg.toFixed(1)+'%'; thv.textContent=th.toFixed(2)+'%';
+    build(sk,sg); var mu=mean(), o=omega(th);
+    // histogram
+    var bins=new Array(NB).fill(0), bw=(RMAX-RMIN)/NB, mx=1;
+    for(var i=0;i<rs.length;i++){var b=Math.floor((rs[i]-RMIN)/bw); if(b<0)b=0; if(b>=NB)b=NB-1; bins[b]++;}
+    for(i=0;i<NB;i++) if(bins[i]>mx)mx=bins[i];
+    ctx.clearRect(0,0,W,H); var base=H-46, top=24;
+    // zero gridline
+    ctx.strokeStyle=line; ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(40,base);ctx.lineTo(W-20,base);ctx.stroke();
+    // bars, colored by side of theta
+    for(i=0;i<NB;i++){ if(!bins[i])continue; var lo=RMIN+i*bw, hi=lo+bw, c=(lo+hi)/2;
+      var x0=X(lo), x1=X(hi), h=(bins[i]/mx)*(base-top);
+      ctx.fillStyle = c>th? 'rgba(49,196,141,0.55)' : (c<th? 'rgba(240,97,106,0.55)':mut);
+      ctx.fillRect(x0,base-h,Math.max(1,x1-x0-0.5),h);
+    }
+    // mean marker (dashed, warn) = where Omega==1
+    ctx.strokeStyle=warn; ctx.setLineDash([5,4]); ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.moveTo(X(mu),top-6);ctx.lineTo(X(mu),base);ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle=warn; ctx.font='11px sans-serif'; ctx.textAlign='center';
+    ctx.fillText('μ (Ω=1)', X(mu), top-10);
+    // theta line (accent, draggable)
+    ctx.strokeStyle=acc; ctx.lineWidth=2.5;
+    ctx.beginPath();ctx.moveTo(X(th),top-2);ctx.lineTo(X(th),base+8);ctx.stroke();
+    ctx.fillStyle=acc; ctx.beginPath();ctx.arc(X(th),top-2,5,0,6.2831853);ctx.fill();
+    ctx.fillText('θ='+th.toFixed(2)+'%', X(th), base+22);
+    // axis ticks
+    ctx.fillStyle=mut; ctx.font='10px sans-serif';
+    for(var t=RMIN;t<=RMAX;t+=2){ ctx.fillText(t+'%', X(t), H-6); }
+    // readouts
+    gO.textContent=o.gp.toFixed(1); lO.textContent=o.ls.toFixed(1);
+    if(o.om===Infinity){out.textContent='+∞'; out.style.color=good;}
+    else { out.textContent=o.om.toFixed(3); out.style.color = o.om>=1?good:bad; }
+    var pass = o.om!==Infinity ? o.om>=1.15 : true;
+    vf.textContent = pass? 'Ω ≥ 1.15 green' : 'below 1.15 floor';
+    vf.style.color = pass? good : warn;
+  }
+  // drag on canvas to move theta
+  function setTh(clientX){ var rect=cv.getBoundingClientRect(); var px=(clientX-rect.left)*(W/rect.width);
+    var r=RMIN+(px-40)/(W-60)*(RMAX-RMIN); r=Math.max(-4,Math.min(4,r)); thE.value=r.toFixed(2); draw(); }
+  var drag=false;
+  cv.addEventListener('mousedown',function(e){drag=true;setTh(e.clientX);});
+  window.addEventListener('mousemove',function(e){if(drag)setTh(e.clientX);});
+  window.addEventListener('mouseup',function(){drag=false;});
+  cv.addEventListener('touchstart',function(e){drag=true;setTh(e.touches[0].clientX);e.preventDefault();},{passive:false});
+  cv.addEventListener('touchmove',function(e){if(drag){setTh(e.touches[0].clientX);e.preventDefault();}},{passive:false});
+  window.addEventListener('touchend',function(){drag=false;});
+  [skE,sgE,thE].forEach(function(el){el.addEventListener('input',draw);});
+  draw();
+})();
+</script>
+
+
+<h3 id="lab-pf-sec">Profit Factor</h3>
+<p class="lede" style="font-size:16px">Gross dollars won per dollar lost — the 1.5 floor means 50% more won than lost.</p>
+  <div class="formula">$$ \text{PF} = \frac{\sum_{\text{pnl}_i > 0}\text{pnl}_i}{\left|\sum_{\text{pnl}_i < 0}\text{pnl}_i\right|} $$</div>
+  <div class="formula">$$ \text{PF} = \frac{W\cdot \overline{w}}{L\cdot \overline{\ell}} = \frac{p}{1-p}\cdot R,\quad R=\frac{\overline{w}}{\overline{\ell}},\ p=\text{win rate} $$</div>
+  <div class="formula">$$ \text{PF}\to+\infty \ \text{when } L=0;\qquad \text{floor: } \text{PF}\ge 1.5 $$</div>
+<p><b>Profit Factor is gross dollars won divided by gross dollars lost.</b> The code (<code>backtester.py:392</code>) computes it on the per-<em>trade</em> P&L table, not the return series: <code>wins = pnl[pnl&gt;0]</code>, <code>losses = pnl[pnl&lt;0]</code>, then <code>PF = wins.sum() / abs(losses.sum())</code>. Zero-P&L trades fall out of both sums; when there are no losers it returns <code>np.inf</code>.</p><p>The <b>closed form</b> makes the sliders meaningful. With <span class="muted">N</span> trades, win rate <code>p</code> and payoff ratio <code>R = avg&nbsp;win / avg&nbsp;loss</code>, the win count is <code>W=pN</code> and loss count <code>L=(1-p)N</code>. Fixing avg loss to 1 unit and avg win to <code>R</code>, gross won <code>= pN·R</code> and gross lost <code>= (1-p)N·1</code>, so <b>PF = [p/(1-p)]·R</b>. N cancels — PF depends only on the win/loss <em>odds</em> and the <em>payoff ratio</em>, never on how many trades you take.</p><p>This is why PF and win rate are near-independent knobs: a 40% win rate with R=3 gives PF = (0.4/0.6)·3 = 2.0, beating a 60%/R=1 coin-flip (PF = 1.5). The COBRA gate (<code>fep_robustness.py:33</code>) sets the <b>edge floor at PF ≥ 1.5</b> — 50% more gross dollars won than lost — one of four per-metric floors a ratio TPI must clear (with Sortino ≥ 1.0, Omega ≥ 1.15, Sharpe ≥ 0.7).</p><p>The visual draws each simulated trade as a signed bar and accumulates the two gross totals as stacked columns; the readout is the exact ratio of those two column heights, so it always equals the formula above.</p>
+<div class="lab" id="mathlab-pf">
+  <div class="lab-h"><span class="tag">MATH</span><b>Profit Factor</b></div>
+  <div class="lab-body">
+    <div class="mathgrid">
+      <div><div class="ctrl"><label>Win rate p <span class="val" id="pf-pv"></span></label><input type="range" id="pf-p" min="5" max="95" value="45" step="1"></div>
+<div class="ctrl"><label>Payoff ratio R = avg win / avg loss <span class="val" id="pf-rv"></span></label><input type="range" id="pf-r" min="0.2" max="5" value="2.2" step="0.05"></div>
+<div class="ctrl"><label>Trades N <span class="val" id="pf-nv"></span></label><input type="range" id="pf-n" min="10" max="80" value="40" step="1"></div>
+<div class="ctrl"><label>Dispersion (per-trade noise) <span class="val" id="pf-dv"></span></label><input type="range" id="pf-d" min="0" max="80" value="35" step="1"></div></div>
+      <div><h2 class="sr-only">Interactive Profit Factor: green win bars and red loss bars with two stacked gross totals, showing PF = gross won / gross lost.</h2>
+<div style="display:flex;gap:18px;align-items:baseline;flex-wrap:wrap;margin-bottom:6px">
+<div style="font:600 13px system-ui;color:#9aa7b8">Profit Factor <span id="pf-out" style="font:700 22px system-ui;color:#e7edf5">—</span></div>
+<div style="font:600 12px system-ui;color:#31c48d">gross won <span id="pf-won">—</span></div>
+<div style="font:600 12px system-ui;color:#f0616a">gross lost <span id="pf-lost">—</span></div>
+<div id="pf-verdict" style="font:700 12px system-ui;color:#9aa7b8"></div>
+</div>
+<canvas id="pf-cv" width="720" height="340"></canvas></div>
+    </div>
+    <p class="note tiny" style="margin-bottom:0"><b>What it shows:</b> Profit Factor depends only on the win/loss odds p/(1-p) times the payoff ratio R — not on trade count — so PF=1.5 literally means the green "gross won" column stands 50% taller than the red "gross lost" column.</p>
+  </div>
+</div>
+<script>
+(function(){
+  var cv=document.getElementById('pf-cv'); if(!cv) return;
+  var ctx=cv.getContext('2d'), W=cv.width, H=cv.height;
+  var ink='#e7edf5',mut='#9aa7b8',acc='#5aa9ff',good='#31c48d',warn='#f6b73c',bad='#f0616a',line='#2a3342';
+  var E={p:'pf-p',r:'pf-r',n:'pf-n',d:'pf-d'}, el={};
+  for(var k in E) el[k]=document.getElementById(E[k]);
+  function seeded(s){return function(){s=(s*1103515245+12345)&0x7fffffff;return s/0x7fffffff;};}
+  function draw(){
+    var p=+el.p.value/100, R=+el.r.value, N=+el.n.value, disp=+el.d.value/100;
+    document.getElementById('pf-pv').textContent=(p*100).toFixed(0)+'%';
+    document.getElementById('pf-rv').textContent=R.toFixed(2);
+    document.getElementById('pf-nv').textContent=N;
+    document.getElementById('pf-dv').textContent=(disp*100).toFixed(0)+'%';
+    // build per-trade pnl: avg loss = -1, avg win = +R, with multiplicative noise, deterministic
+    var rnd=seeded(9173), pnl=[], nWin=Math.round(p*N);
+    for(var i=0;i<N;i++){
+      var win=i<nWin;                       // exactly nWin winners => win rate p
+      var base= win? R : -1;
+      var noise=1+disp*(rnd()*2-1);         // +/- disp
+      pnl.push(base*noise);
+    }
+    // shuffle order for display only (deterministic)
+    for(var j=N-1;j>0;j--){var q=Math.floor(rnd()*(j+1));var t=pnl[j];pnl[j]=pnl[q];pnl[q]=t;}
+    var gWon=0,gLost=0;
+    for(i=0;i<N;i++){ if(pnl[i]>0)gWon+=pnl[i]; else if(pnl[i]<0)gLost+=pnl[i]; }
+    var absLost=Math.abs(gLost);
+    var PF = absLost>0 ? gWon/absLost : Infinity;
+    document.getElementById('pf-out').textContent = isFinite(PF)? PF.toFixed(2):'∞';
+    document.getElementById('pf-won').textContent = gWon.toFixed(1);
+    document.getElementById('pf-lost').textContent = absLost.toFixed(1);
+    var vd=document.getElementById('pf-verdict');
+    if(!isFinite(PF)||PF>=1.5){vd.textContent='✓ clears PF≥1.5 floor';vd.style.color=good;}
+    else if(PF>=1){vd.textContent='profitable but below floor';vd.style.color=warn;}
+    else {vd.textContent='✗ loses money (PF<1)';vd.style.color=bad;}
+    // ---- render ----
+    ctx.clearRect(0,0,W,H);
+    var padL=60, padR=210, plotW=W-padL-padR, midY=150, barMax=95;
+    var maxAbs=Math.max.apply(null,pnl.map(function(v){return Math.abs(v);})).concat?0:0;
+    maxAbs=0; for(i=0;i<N;i++) maxAbs=Math.max(maxAbs,Math.abs(pnl[i])); if(maxAbs<=0)maxAbs=1;
+    // zero axis
+    ctx.strokeStyle=line; ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(padL,midY);ctx.lineTo(padL+plotW,midY);ctx.stroke();
+    ctx.fillStyle=mut; ctx.font='11px system-ui'; ctx.textAlign='right';
+    ctx.fillText('0',padL-6,midY+4);
+    ctx.textAlign='left'; ctx.fillText('per-trade P&L',padL,20);
+    // bars
+    var bw=plotW/N, gw=Math.max(1,bw*0.72);
+    for(i=0;i<N;i++){
+      var x=padL+i*bw+(bw-gw)/2, h=Math.abs(pnl[i])/maxAbs*barMax;
+      if(pnl[i]>0){ctx.fillStyle=good; ctx.fillRect(x,midY-h,gw,h);}
+      else {ctx.fillStyle=bad; ctx.fillRect(x,midY,gw,h);}
+    }
+    // stacked gross totals (right panel)
+    var sx=padL+plotW+40, sw=52, sTop=32, sBot=270, scaleH=sBot-sTop;
+    var gmax=Math.max(gWon,absLost,1e-6);
+    var hW=gWon/gmax*scaleH, hL=absLost/gmax*scaleH;
+    ctx.fillStyle=good; ctx.fillRect(sx, sBot-hW, sw, hW);
+    ctx.fillStyle=bad;  ctx.fillRect(sx+sw+26, sBot-hL, sw, hL);
+    ctx.strokeStyle=line; ctx.beginPath();ctx.moveTo(sx-8,sBot);ctx.lineTo(sx+2*sw+34,sBot);ctx.stroke();
+    ctx.fillStyle=ink; ctx.font='600 11px system-ui'; ctx.textAlign='center';
+    ctx.fillText('won',sx+sw/2,sBot+16); ctx.fillText('lost',sx+sw+26+sw/2,sBot+16);
+    ctx.fillStyle=good; ctx.fillText(gWon.toFixed(0),sx+sw/2,sBot-hW-6);
+    ctx.fillStyle=bad;  ctx.fillText(absLost.toFixed(0),sx+sw+26+sw/2,sBot-hL-6);
+    // PF as ratio bracket
+    ctx.fillStyle=isFinite(PF)&&PF<1.5?warn:(isFinite(PF)?good:acc);
+    ctx.font='700 18px system-ui';
+    ctx.fillText('PF = '+(isFinite(PF)?PF.toFixed(2):'∞'), sx+sw+13, 22);
+    // floor marker on stacked panel: won height that would give PF=1.5
+    var floorH=1.5*absLost/gmax*scaleH;
+    if(floorH<=scaleH){
+      ctx.strokeStyle=warn; ctx.setLineDash([5,4]); ctx.lineWidth=1.5;
+      ctx.beginPath();ctx.moveTo(sx-4,sBot-floorH);ctx.lineTo(sx+sw+4,sBot-floorH);ctx.stroke();
+      ctx.setLineDash([]); ctx.fillStyle=warn; ctx.font='10px system-ui'; ctx.textAlign='left';
+      ctx.fillText('1.5× floor',sx+sw+8,sBot-floorH+3);
+    }
+  }
+  for(var kk in el) el[kk].addEventListener('input',draw);
+  draw();
+})();
+</script>
+
+
+<h3 id="lab-annual-sec">Annualization: time is a square root</h3>
+<p class="lede" style="font-size:16px">Daily Sharpe scales by √ppy — and using crypto's 365 on a stock over-credits its edge by 1.2035×</p>
+  <div class="formula">$$ \text{ppy} = \begin{cases} 365 & \text{crypto (default)} \\ 252 & \text{stocks} \end{cases} $$</div>
+  <div class="formula">$$ \text{Sharpe}_{\text{ann}} = \sqrt{\text{ppy}}\;\frac{\overline{(r-r_f/\text{ppy})}}{\sigma_{\text{pop}}(r-r_f/\text{ppy})} = \sqrt{\text{ppy}}\;\cdot\;\text{Sharpe}_{\text{per-period}} $$</div>
+  <div class="formula">$$ \frac{\sqrt{365}}{\sqrt{252}} = \sqrt{\tfrac{365}{252}} = 1.2035\quad(\text{basis-mismatch inflation}) $$</div>
+<p>Every annualized ratio in the backtester (<code>_sharpe</code>, <code>_sortino</code>, Annual Vol, Info Ratio) is a <b>per-period</b> statistic multiplied by a single scalar <code>√ppy</code>. The reason is variance additivity: for i.i.d. daily returns, mean scales linearly with the number of periods (<em>k·μ</em>) while standard deviation scales with <em>√k</em> (<em>√k·σ</em>). Their ratio therefore scales by <em>k/√k = √k</em>. With <code>k = ppy</code> daily bars per year, the annualization factor is exactly <code>√ppy</code> — not <code>ppy</code>.</p><p>The code reads <code>ppy</code> from a mutable module global <code>_ACTIVE_PPY</code> at <em>call time</em>: <code>365</code> for crypto (24/7 trading, <code>_TRADING_DAYS</code>) and <code>252</code> for stocks (<code>_STOCK_TRADING_DAYS</code>), swapped via the <code>annualization()</code> context manager. The mean excess uses de-annualized risk-free <code>r_f/ppy</code> and the denominator is the <b>population</b> std (<code>ddof=0</code>), so the whole ratio is a clean <code>√ppy · (per-period Sharpe)</code>.</p><p>The trap: the factor differs by basis. <code>√365 / √252 = √(365/252) = 1.2035</code>. Annualizing a <em>stock</em> with the crypto basis of 365 multiplies its true (252-based) Sharpe and Sortino by <b>1.2035×</b> — a ~20% free inflation. A stock whose honest annualized Sharpe is the FEP edge floor of <b>0.70</b> would read <code>0.70 × 1.2035 = 0.842</code> under 365, spuriously clearing the gate. That is why stock TPI scoring must enter <code>annualization(252)</code> before scoring — otherwise the COBRA floors are silently loosened for every non-crypto name.</p>
+<div class="lab" id="mathlab-annual">
+  <div class="lab-h"><span class="tag">MATH</span><b>Annualization: time is a square root</b></div>
+  <div class="lab-body">
+    <div class="mathgrid">
+      <div><div class="ctrl">
+  <label>Per-period (daily) Sharpe <span class="val" id="annual-spv"></span></label>
+  <input type="range" id="annual-sp" min="0" max="0.12" step="0.001" value="0.044">
+</div>
+<div class="ctrl">
+  <label>Annualization basis (ppy)</label>
+  <div class="seg">
+    <button id="annual-b365" data-ppy="365">crypto · 365</button>
+    <button id="annual-b252" data-ppy="252">stocks · 252</button>
+  </div>
+</div>
+<div class="ctrl">
+  <label>Risk-free rate r<sub>f</sub> (annual) <span class="val" id="annual-rfv"></span></label>
+  <input type="range" id="annual-rf" min="0" max="0.06" step="0.001" value="0">
+</div></div>
+      <div><canvas id="annual-cv" width="700" height="330"></canvas>
+<div id="annual-out" style="font-family:ui-monospace,monospace;font-size:13px;color:#e7edf5;margin-top:8px;line-height:1.6"></div></div>
+    </div>
+    <p class="note tiny" style="margin-bottom:0"><b>What it shows:</b> Annualization multiplies a per-period ratio by √ppy (not ppy), so choosing crypto's 365 over a stock's 252 basis inflates its Sharpe/Sortino by exactly √(365/252)=1.2035× — enough to push a sub-floor edge fraudulently over the 0.70 FEP gate.</p>
+  </div>
+</div>
+<script>
+(function(){
+  var cv=document.getElementById('annual-cv'); if(!cv) return;
+  var ctx=cv.getContext('2d'); var W=cv.width,H=cv.height;
+  var ink='#e7edf5',mut='#9aa7b8',acc='#5aa9ff',good='#31c48d',warn='#f6b73c',bad='#f0616a',line='#2a3342';
+  var sp=document.getElementById('annual-sp'),rf=document.getElementById('annual-rf');
+  var b365=document.getElementById('annual-b365'),b252=document.getElementById('annual-b252');
+  var spv=document.getElementById('annual-spv'),rfv=document.getElementById('annual-rfv'),out=document.getElementById('annual-out');
+  var FLOOR=0.7, ppy=365;
+  function seg(){ b365.style.opacity=ppy===365?1:0.45; b252.style.opacity=ppy===252?1:0.45; }
+  b365.onclick=function(){ppy=365;seg();draw();}; b252.onclick=function(){ppy=252;seg();draw();};
+  function sqrt(x){return Math.sqrt(x);}
+  function draw(){
+    var s=parseFloat(sp.value); // per-period sharpe (rf already netted conceptually)
+    spv.textContent=s.toFixed(3); rfv.textContent=(parseFloat(rf.value)*100).toFixed(1)+'%';
+    ctx.clearRect(0,0,W,H);
+    // axes: x = ppy from 200..380 mapping the sqrt curve; y = annualized sharpe
+    var padL=54,padR=20,padT=18,padB=40; var x0=padL,x1=W-padR,y0=H-padB,y1=padT;
+    var pMin=200,pMax=380;
+    var annMax=s*Math.sqrt(pMax)*1.12+0.05;
+    function X(p){return x0+(p-pMin)/(pMax-pMin)*(x1-x0);}
+    function Y(v){return y0-(v/annMax)*(y0-y1);}
+    // grid + floor line
+    ctx.strokeStyle=line; ctx.lineWidth=1; ctx.font='11px ui-monospace,monospace'; ctx.fillStyle=mut;
+    for(var g=0;g<=4;g++){var v=annMax*g/4;var yy=Y(v);ctx.beginPath();ctx.moveTo(x0,yy);ctx.lineTo(x1,yy);ctx.stroke();ctx.fillText(v.toFixed(2),6,yy+3);}
+    // FEP floor 0.7
+    var yf=Y(FLOOR); ctx.strokeStyle=warn; ctx.setLineDash([5,4]); ctx.beginPath();ctx.moveTo(x0,yf);ctx.lineTo(x1,yf);ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle=warn; ctx.fillText('FEP Sharpe floor 0.70',x1-150,yf-5);
+    // sqrt curve: ann = s*sqrt(p)
+    ctx.strokeStyle=acc; ctx.lineWidth=2; ctx.beginPath();
+    for(var p=pMin;p<=pMax;p+=1){var xx=X(p),yy=Y(s*Math.sqrt(p));if(p===pMin)ctx.moveTo(xx,yy);else ctx.lineTo(xx,yy);}
+    ctx.stroke();
+    // mark 252 and 365
+    function mark(p,col,lab){
+      var v=s*Math.sqrt(p),xx=X(p),yy=Y(v);
+      ctx.strokeStyle=col;ctx.setLineDash([2,3]);ctx.beginPath();ctx.moveTo(xx,y0);ctx.lineTo(xx,yy);ctx.stroke();ctx.setLineDash([]);
+      ctx.fillStyle=col;ctx.beginPath();ctx.arc(xx,yy,4,0,7);ctx.fill();
+      ctx.fillStyle=mut;ctx.fillText(lab,xx-10,y0+15);
+      return {xx:xx,yy:yy,v:v};
+    }
+    var m252=mark(252,good,'252'); var m365=mark(365,bad,'365');
+    // active basis emphasized ring
+    var act=ppy===365?m365:m252; ctx.strokeStyle=ink;ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(act.xx,act.yy,7,0,7);ctx.stroke();
+    // inflation bracket between the two points
+    ctx.strokeStyle=warn;ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(m252.xx,m252.yy);ctx.lineTo(m365.xx,m365.yy);ctx.stroke();
+    ctx.fillStyle=ink;ctx.font='12px ui-monospace,monospace';
+    ctx.fillText('×1.2035',(m252.xx+m365.xx)/2-20,(m252.yy+m365.yy)/2-8);
+    // title on curve
+    ctx.fillStyle=acc;ctx.fillText('ann = per-period × √ppy',x0+8,y1+12);
+    // readout: exact formula values
+    var a252=s*Math.sqrt(252), a365=s*Math.sqrt(365), ratio=Math.sqrt(365/252);
+    var active=s*Math.sqrt(ppy);
+    var pass=active>=FLOOR?'<span style="color:'+good+'">clears 0.70</span>':'<span style="color:'+bad+'">below 0.70</span>';
+    out.innerHTML=
+      '√ppy = '+Math.sqrt(ppy).toFixed(4)+'  (ppy='+ppy+')  →  ann Sharpe = '+s.toFixed(3)+' × '+Math.sqrt(ppy).toFixed(4)+' = <b style="color:'+acc+'">'+active.toFixed(4)+'</b>  '+pass+'<br>'+
+      'stock basis 252: '+a252.toFixed(4)+'   ·   crypto basis 365: '+a365.toFixed(4)+'<br>'+
+      'inflation √(365/252) = <b style="color:'+warn+'">'+ratio.toFixed(4)+'</b>  →  365 over-credits the 252-honest Sharpe by '+((ratio-1)*100).toFixed(2)+'%';
+  }
+  sp.oninput=draw; rf.oninput=draw; seg(); draw();
+})();
+</script>
+
+<h3 id="math-M2" style="color:var(--accent2);border-top:1px solid var(--line);padding-top:16px">The perturbation math — does it survive being poked?</h3>
+<p class="muted">Robustness = the edge persists when you perturb the strategy. Four perturbation axes, four estimators — the temporal (WFE), parameter (CoV), path (Monte-Carlo) and signal (coherence) tests.</p>
+
+<h3 id="lab-wfe-sec">Walk-Forward Efficiency (WFE)</h3>
+<p class="lede" style="font-size:16px">The fraction of your in-sample edge that survives honest, out-of-sample re-optimization — trade-weighted across sliding folds.</p>
+  <div class="formula">$$ \rho_k = \begin{cases}\min\!\big(\tfrac{\text{tcore}_k}{\text{rcore}_k},\,3.0\big) & \text{rcore}_k > 0.10\\[2pt] 0 & \text{otherwise}\end{cases} $$</div>
+  <div class="formula">$$ \text{WFE} = \dfrac{\sum_{k=1}^{K} w_k\,\rho_k}{\sum_{k=1}^{K} w_k},\quad w_k = \text{Trades}^{\text{test}}_k \quad(\text{else } \tfrac1K\textstyle\sum_k\rho_k \text{ if } \sum w_k=0) $$</div>
+  <div class="formula">$$ T_{\text{wf}} = \sum_{k} \text{Trades}^{\text{test}}_k,\quad \text{certifiable} = [\,T_{\text{wf}} \ge 30\,] $$</div>
+  <div class="formula">$$ \text{wf\_fail} = [\,\text{WFE} < 0.50\,] \wedge [\,T_{\text{wf}} \ge 30\,] $$</div>
+<p><b>What WFE measures.</b> Each anchored, expanding fold trains on an in-sample slice and is judged on a held-out OOS tail. We score both windows with a trade-count-agnostic quality core <code>core = (Sharpe/2 + Sortino/3 + Ω/1.35 + PF/4)/4</code>, clamped ≥0. The per-fold retention ratio is <span class="muted">ρ<sub>k</sub> = tcore<sub>k</sub>/rcore<sub>k</sub></span> — how much of the training edge survived out-of-sample. ρ=1 means the edge fully generalized; ρ=0.5 means half of it was overfit noise.</p><p><b>Two deliberate non-textbook choices.</b> (1) The ratio is <b>capped at 3.0</b> before weighting, so one lucky fold can't dominate; and it's forced to <b>0 when the train core ≤ 0.10</b>, killing spurious "greens" born from a near-dead training fold (dividing a tiny OOS number by a tiny IS number). (2) The aggregate is <b>trade-weighted</b>: <span class="muted">w<sub>k</sub> = the fold's OOS trade count</span>. A 2-trade fold carries almost no weight; a 40-trade fold anchors the estimate. If every fold records zero test trades the code falls back to a plain mean.</p><p><b>Why the ≥30 gate exists.</b> WFE is a ratio of noisy estimates. Below 30 <em>total</em> OOS trades it is neither trustworthy enough to <b>hard-fail</b> a TPI (conditional WFE) nor to <b>certify</b> one (uncertified ⇒ ROBUST capped at BORDERLINE). This is exactly why a trade-starved book (median ~17 OOS trades) collapses to mostly BORDERLINE. The 0.50 floor only bites once the ≥30 certification threshold is crossed.</p><p>Drag the fold sliders below: watch each ρ<sub>k</sub> against the 0.5 floor, and watch the trade weights bend the WFE toward the folds that actually traded. The readout is the exact <code>mean_ratio</code> the optimizer computes.</p>
+<div class="lab" id="mathlab-wfe">
+  <div class="lab-h"><span class="tag">MATH</span><b>Walk-Forward Efficiency (WFE)</b></div>
+  <div class="lab-body">
+    <div class="mathgrid">
+      <div><div class="ctrl"><label>Folds (K) <span class="val" id="wfe-kv"></span></label><input type="range" id="wfe-k" min="3" max="7" step="1" value="5"></div>
+<div class="ctrl"><label>Edge decay (later folds lose edge) <span class="val" id="wfe-dv"></span></label><input type="range" id="wfe-d" min="0" max="100" step="1" value="35"></div>
+<div class="ctrl"><label>OOS trades per fold (scale) <span class="val" id="wfe-tv"></span></label><input type="range" id="wfe-t" min="0" max="60" step="1" value="12"></div>
+<div class="ctrl"><label>Trade skew (front-load vs back-load trades) <span class="val" id="wfe-sv"></span></label><input type="range" id="wfe-s" min="-100" max="100" step="1" value="0"></div>
+<div class="seg" style="margin-top:8px"><button id="wfe-tw" data-on="1">Trade-weighted</button><button id="wfe-pm" data-on="0">Plain mean</button></div></div>
+      <div><h2 class="sr-only">Animated walk-forward folds showing per-fold OOS/IS edge-retention ratios and the trade-weighted WFE against the 0.5 floor and 30-trade certification threshold.</h2>
+<canvas id="wfe-cv" width="720" height="360"></canvas>
+<div id="wfe-out" style="margin-top:10px;font:600 15px ui-monospace,Menlo,monospace;color:#e7edf5"></div>
+<div id="wfe-verdict" style="margin-top:4px;font:600 13px ui-monospace,Menlo,monospace"></div></div>
+    </div>
+    <p class="note tiny" style="margin-bottom:0"><b>What it shows:</b> WFE is a trade-weighted average of per-fold OOS/IS edge-retention ratios: folds that actually traded steer the number, the 0.5 line is the survive/overfit boundary, and the 30-trade bar decides whether that number is even allowed to certify or condemn a strategy.</p>
+  </div>
+</div>
+<script>
+(function(){
+  var cv=document.getElementById('wfe-cv'); if(!cv) return; var ctx=cv.getContext('2d');
+  var ink='#e7edf5',mut='#9aa7b8',acc='#5aa9ff',good='#31c48d',warn='#f6b73c',bad='#f0616a',pan='#161b24',line='#2a3342';
+  var K=document.getElementById('wfe-k'),D=document.getElementById('wfe-d'),T=document.getElementById('wfe-t'),S=document.getElementById('wfe-s');
+  var bTW=document.getElementById('wfe-tw'),bPM=document.getElementById('wfe-pm');
+  bTW.onclick=function(){bTW.dataset.on='1';bPM.dataset.on='0';draw();};
+  bPM.onclick=function(){bTW.dataset.on='0';bPM.dataset.on='1';draw();};
+  [K,D,T,S].forEach(function(e){e.oninput=draw;});
+  var t0=performance.now();
+  function seg(){bTW.style.opacity=bTW.dataset.on==='1'?1:.45;bPM.style.opacity=bPM.dataset.on==='1'?1:.45;}
+  function compute(anim){
+    var k=+K.value,decay=+D.value/100,tsc=+T.value,skew=+S.value/100;
+    var folds=[];
+    for(var i=0;i<k;i++){
+      var f=k>1?i/(k-1):0;
+      // train core ~1.0; OOS core decays with fold + a fixed noise dip. rcore guard at 0.10.
+      var rcore=1.0;
+      var tcore=1.0-decay*f; // edge retention shrinks in later folds
+      // certain folds go near-dead in train to demo the 0.10 guard on the last fold when decay high
+      var trainDead = (decay>0.85 && i===k-1)?0.05:rcore;
+      var rho = trainDead>0.10 ? Math.min(tcore/trainDead,3.0) : 0;
+      // trades: base scale * skew ramp, animate a gentle breathing
+      var ramp = 1 + skew*(f-0.5)*2;
+      var br = (typeof anim==='number')?1+0.06*Math.sin((anim-t0)/700+i):1;
+      var w = Math.max(0,Math.round(tsc*ramp*br));
+      folds.push({rho:rho,w:w,tcore:tcore,rcore:trainDead});
+    }
+    var sw=0,swr=0,sr=0; folds.forEach(function(fo){sw+=fo.w;swr+=fo.w*fo.rho;sr+=fo.rho;});
+    var tw=bTW.dataset.on==='1';
+    var wfe = (tw && sw>0)? swr/sw : sr/k;
+    var Twf=sw, cert=Twf>=30;
+    return {folds:folds,wfe:wfe,Twf:Twf,cert:cert,tw:tw&&sw>0};
+  }
+  function draw(anim){
+    seg();
+    K.previousElementSibling; document.getElementById('wfe-kv').textContent=K.value;
+    document.getElementById('wfe-dv').textContent=(+D.value)+'%';
+    document.getElementById('wfe-tv').textContent='~'+T.value;
+    document.getElementById('wfe-sv').textContent=(+S.value>0?'back-loaded':(+S.value<0?'front-loaded':'even'));
+    var r=compute(anim),W=cv.width,H=cv.height,pl=48,pr=18,pt=18,pb=64,gw=W-pl-pr,gh=H-pt-pb;
+    ctx.clearRect(0,0,W,H);
+    // panel + y grid (ratio 0..3)
+    ctx.fillStyle=pan;ctx.fillRect(pl,pt,gw,gh);
+    function yy(v){return pt+gh-(v/3)*gh;}
+    ctx.strokeStyle=line;ctx.fillStyle=mut;ctx.font='11px ui-monospace,monospace';ctx.textAlign='right';
+    [0,0.5,1,1.5,2,2.5,3].forEach(function(v){var y=yy(v);ctx.beginPath();ctx.moveTo(pl,y);ctx.lineTo(pl+gw,y);ctx.stroke();ctx.fillText(v.toFixed(1),pl-6,y+3);});
+    // 0.5 floor + 1.0 full-retention lines
+    ctx.setLineDash([5,4]);ctx.strokeStyle=bad;ctx.beginPath();ctx.moveTo(pl,yy(0.5));ctx.lineTo(pl+gw,yy(0.5));ctx.stroke();
+    ctx.strokeStyle=good;ctx.beginPath();ctx.moveTo(pl,yy(1));ctx.lineTo(pl+gw,yy(1));ctx.stroke();ctx.setLineDash([]);
+    ctx.textAlign='left';ctx.fillStyle=bad;ctx.fillText('0.50 floor',pl+4,yy(0.5)-4);
+    ctx.fillStyle=good;ctx.fillText('1.0 full retention',pl+4,yy(1)-4);
+    // bars per fold; width encodes trade weight
+    var k=r.folds.length,slot=gw/k,maxw=Math.max(1,Math.max.apply(null,r.folds.map(function(f){return f.w;})));
+    r.folds.forEach(function(f,i){
+      var cx=pl+slot*(i+0.5),bw=slot*(0.25+0.55*(f.w/maxw));
+      var col=f.rho>=1?good:(f.rho>=0.5?warn:bad);
+      var y=yy(f.rho);ctx.fillStyle=col;ctx.globalAlpha=r.tw?0.55+0.45*(f.w/maxw):0.85;
+      ctx.fillRect(cx-bw/2,y,bw,pt+gh-y);ctx.globalAlpha=1;
+      ctx.strokeStyle=col;ctx.lineWidth=2;ctx.strokeRect(cx-bw/2,y,bw,pt+gh-y);ctx.lineWidth=1;
+      ctx.fillStyle=ink;ctx.textAlign='center';ctx.font='11px ui-monospace,monospace';
+      ctx.fillText('ρ='+f.rho.toFixed(2),cx,y-6);
+      ctx.fillStyle=mut;ctx.fillText('w='+f.w,cx,pt+gh+16);
+      ctx.fillText('F'+(i+1),cx,pt+gh+30);
+    });
+    // WFE horizontal marker
+    var wy=yy(Math.min(r.wfe,3));ctx.setLineDash([2,3]);ctx.strokeStyle=acc;ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(pl,wy);ctx.lineTo(pl+gw,wy);ctx.stroke();ctx.lineWidth=1;ctx.setLineDash([]);
+    ctx.fillStyle=acc;ctx.textAlign='right';ctx.fillText('WFE',pl+gw-2,wy-4);
+    // trade certification bar (bottom)
+    var by=pt+gh+42,frac=Math.min(1,r.Twf/60);
+    ctx.fillStyle=line;ctx.fillRect(pl,by,gw,10);
+    ctx.fillStyle=r.cert?good:warn;ctx.fillRect(pl,by,gw*frac,10);
+    var tx=pl+gw*(30/60);ctx.strokeStyle=ink;ctx.beginPath();ctx.moveTo(tx,by-3);ctx.lineTo(tx,by+13);ctx.stroke();
+    ctx.fillStyle=mut;ctx.textAlign='left';ctx.font='11px ui-monospace,monospace';
+    ctx.fillText('OOS trades T_wf='+r.Twf+'  (▲ 30 = certifiable)',pl,by+24);
+    // readouts
+    var out=document.getElementById('wfe-out');
+    out.textContent='WFE = '+r.wfe.toFixed(3)+'   ('+(r.tw?'trade-weighted':'plain mean')+', K='+k+', T_wf='+r.Twf+')';
+    var v=document.getElementById('wfe-verdict'),fail=(r.wfe<0.5&&r.cert);
+    if(!r.cert){v.style.color=warn;v.textContent='UNCERTIFIED (T_wf<30): WFE cannot hard-fail nor certify → ROBUST capped at BORDERLINE.';}
+    else if(fail){v.style.color=bad;v.textContent='HARD-FAIL: WFE<0.50 with ≥30 OOS trades → FRAGILE (temporal instability).';}
+    else{v.style.color=good;v.textContent='STABLE: WFE≥0.50 and certifiable (≥30 OOS trades). Temporal gate passes.';}
+  }
+  draw();  // paint once; redraws on every control input — no perpetual animation loop (keeps the tab idle)
+})();
+</script>
+
+
+<h3 id="lab-cov-sec">Coefficient of Variation — Plateau vs Spike</h3>
+<p class="lede" style="font-size:16px">A robust edge doesn't care about the exact parameter; a curve-fit spike lives or dies on one integer.</p>
+  <div class="formula">$$ \text{per\_metric\_cv}[m] = \operatorname{round}\!\left(\frac{\sigma_{\text{pop}}\big(\{v \in V_m : v\ \text{finite}\}\big)}{\big|\,\mu(V_m)\,\big|},\ 4\right),\quad |\mu| > 10^{-9} $$</div>
+  <div class="formula">$$ V_m = \big\{\, f(p_0 + k) : k \in \{-3,-2,-1,1,2,3\} \,\big\},\qquad \sigma_{\text{pop}} = \sqrt{\tfrac{1}{N}\textstyle\sum (v-\mu)^2}\ \ (\text{ddof}=0) $$</div>
+  <div class="formula">$$ \text{cov\_stable} = \neg\big(\,\text{isnum}(\text{CoV}_{\text{worst}}) \wedge \text{CoV}_{\text{worst}} > \text{cov\_cap}\,\big),\qquad \text{cov\_cap} = 0.20 $$</div>
+<p>Selection tunes a TPI to a single best parameter <code>p₀</code>. The question robustness asks is not <em>"how good is the peak?"</em> but <em>"how much of the peak survives if I was one step off?"</em> The estimator (<code>tpi_autogen.py:1009-1016</code>) sweeps one integer parameter over its <code>±3</code> neighborhood — <code>k∈{-3,-2,-1,1,2,3}</code>, the tuned point itself excluded — re-evaluates a COBRA metric at each, and reports the <b>coefficient of variation</b> of those six realizations.</p><p>CoV is scale-free dispersion: <code>σ/|μ|</code>. Two deliberate choices match the code. First, <b>population</b> standard deviation (<code>ddof=0</code>, numpy default) — this is a descriptive spread of the realized neighborhood, not an inference about a larger population, so the <code>N-1</code> Bessel correction is wrong here. Second, the denominator is <code>|μ|</code> (<em>absolute</em> mean), so a negative-signed metric like drawdown cannot flip CoV negative and produce a nonsensical gate.</p><p>The gate (<code>fep_robustness.py:122</code>) is <b>hard, not advisory</b> despite the <code>ADVISORY_COV_CAP</code> name: if the <em>worst</em> metric's CoV strictly exceeds <code>cov_cap</code> (default <b>0.20</b>), the TPI is stamped FRAGILE regardless of how strong its tuned edge looks. Note the strict <code>&gt;</code>: at exactly <code>0.20</code> the hard gate passes while the read-only advisory (<code>&ge;0.20</code>) fires — a one-tick asymmetry that is intentional.</p><p>Geometrically: a <b>plateau</b> means <code>f</code> is nearly flat across the neighborhood, so <code>σ→0</code> and CoV→0 — the edge is a property of the <em>region</em>, not the point. A <b>spike</b> means <code>f(p₀)</code> towers over its neighbors, so <code>σ</code> is large relative to <code>|μ|</code> and CoV blows past the cap — the "edge" is an artifact of landing on one exact integer, i.e. a curve fit.</p>
+<div class="lab" id="mathlab-cov">
+  <div class="lab-h"><span class="tag">MATH</span><b>Coefficient of Variation — Plateau vs Spike</b></div>
+  <div class="lab-body">
+    <div class="mathgrid">
+      <div><div class="ctrl">
+  <label>Landscape shape <span class="val" id="cov-shapev">plateau</span></label>
+  <input type="range" id="cov-shape" min="0" max="100" value="8" step="1">
+  <div class="muted" style="font-size:12px;margin-top:2px">drag right: flat plateau → sharp spike</div>
+</div>
+<div class="ctrl">
+  <label>cov_cap (FRAGILE gate) <span class="val" id="cov-capv">0.20</span></label>
+  <input type="range" id="cov-cap" min="5" max="50" value="20" step="1">
+</div>
+<div class="ctrl">
+  <label>Peak height μ-scale <span class="val" id="cov-heightv">1.00</span></label>
+  <input type="range" id="cov-height" min="30" max="200" value="100" step="1">
+</div></div>
+      <div><h2 class="sr-only">Interactive coefficient-of-variation landscape: morph a parameter curve from a flat plateau (low CoV, robust) to a sharp spike (high CoV, fragile), sampling the ±3 neighborhood and computing CoV = population-std / |mean| against the 0.20 FRAGILE cap.</h2>
+<canvas id="cov-cv" width="720" height="360" style="max-width:100%;height:auto"></canvas>
+<div id="cov-out" style="margin-top:10px;font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:#e7edf5"></div></div>
+    </div>
+    <p class="note tiny" style="margin-bottom:0"><b>What it shows:</b> CoV measures whether an edge survives being one parameter-step off: a flat plateau has σ≈0 so CoV→0 (robust — the edge is regional), while a sharp spike has large σ relative to |μ| so CoV blows past the 0.20 cap (fragile — the edge is a curve-fit to one exact integer).</p>
+  </div>
+</div>
+<script>
+(function(){
+  var cv=document.getElementById('cov-cv'); if(!cv) return;
+  var ctx=cv.getContext('2d'), W=cv.width, H=cv.height;
+  var ink='#e7edf5',mut='#9aa7b8',acc='#5aa9ff',good='#31c48d',warn='#f6b73c',bad='#f0616a',panel='#161b24',line='#2a3342';
+  var els=['shape','cap','height','shapev','capv','heightv','out'].reduce(function(o,k){o[k]=document.getElementById('cov-'+k);return o;},{});
+  var P0=15, KS=[-3,-2,-1,1,2,3];               // tuned point + neighborhood offsets (tuned excluded, per code)
+  // landscape f(p): blend of a broad plateau and a narrow gaussian spike centred at P0
+  function f(p,shape,hgt){
+    var s=shape/100;                             // 0=plateau .. 1=spike
+    var wide=Math.exp(-Math.pow((p-P0)/9,2));    // broad shoulder
+    var narrow=Math.exp(-Math.pow((p-P0)/(0.75+0.25),2)); // sharp peak
+    var base=0.55*(1-s)+0.05*s;                  // plateau floor shrinks as we spike
+    return hgt*( base + (1-s)*0.45*wide + s*0.95*narrow );
+  }
+  function popStd(a,m){var s=0;for(var i=0;i<a.length;i++)s+=(a[i]-m)*(a[i]-m);return Math.sqrt(s/a.length);}
+  function draw(){
+    var shape=+els.shape.value, cap=(+els.cap.value)/100, hgt=(+els.height.value)/100;
+    els.shapev.textContent = shape<25?'plateau':shape>70?'spike':'ramp';
+    els.capv.textContent = cap.toFixed(2); els.heightv.textContent = hgt.toFixed(2);
+    // sample neighborhood (the real CoV inputs)
+    var vals=KS.map(function(k){return f(P0+k,shape,hgt);});
+    var mu=vals.reduce(function(a,b){return a+b;},0)/vals.length;
+    var sig=popStd(vals,mu);
+    var cov=Math.abs(mu)>1e-9? sig/Math.abs(mu) : NaN;
+    var covR=isNaN(cov)?NaN:Math.round(cov*1e4)/1e4;
+    var stable=!(isFinite(covR)&&covR>cap);      // hard gate: strict >
+    ctx.clearRect(0,0,W,H);
+    var padL=44,padR=16,padT=18,padB=42, x0=padL,x1=W-padR,y0=H-padB,y1=padT;
+    var pMin=P0-8,pMax=P0+8;
+    // y-scale from the full curve
+    var ymax=0; for(var p=pMin;p<=pMax;p+=0.1){var v=f(p,shape,hgt); if(v>ymax)ymax=v;} ymax*=1.08;
+    var X=function(p){return x0+(p-pMin)/(pMax-pMin)*(x1-x0);};
+    var Y=function(v){return y0-(v/ymax)*(y0-y1);};
+    // panel
+    ctx.fillStyle=panel; ctx.fillRect(x0,y1,x1-x0,y0-y1);
+    // mean line + ±1σ band (the CoV numerator/denominator, drawn)
+    ctx.fillStyle='rgba(90,169,255,0.10)'; ctx.fillRect(x0,Y(mu+sig),x1-x0,Y(mu-sig)-Y(mu+sig));
+    ctx.strokeStyle=acc; ctx.setLineDash([5,4]); ctx.lineWidth=1.2;
+    ctx.beginPath();ctx.moveTo(x0,Y(mu));ctx.lineTo(x1,Y(mu));ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle=acc; ctx.font='11px ui-monospace,monospace';
+    ctx.fillText('μ',x1-14,Y(mu)-4); ctx.fillStyle=mut; ctx.fillText('±σ',x1-22,Y(mu+sig)+11);
+    // landscape curve
+    ctx.strokeStyle=stable?good:bad; ctx.lineWidth=2.4; ctx.beginPath();
+    for(var pp=pMin,first=true;pp<=pMax;pp+=0.08){var xx=X(pp),yy=Y(f(pp,shape,hgt)); if(first){ctx.moveTo(xx,yy);first=false;}else ctx.lineTo(xx,yy);}
+    ctx.stroke();
+    // tuned peak marker
+    var pv=f(P0,shape,hgt);
+    ctx.fillStyle=warn; ctx.beginPath();ctx.arc(X(P0),Y(pv),4.5,0,7);ctx.fill();
+    ctx.fillStyle=mut; ctx.textAlign='center'; ctx.fillText('p₀ (tuned)',X(P0),y0+15); ctx.textAlign='left';
+    // neighborhood sample dots (the six CoV inputs)
+    KS.forEach(function(k){var p=P0+k,v=f(p,shape,hgt);
+      ctx.fillStyle=ink; ctx.beginPath();ctx.arc(X(p),Y(v),4,0,7);ctx.fill();
+      ctx.strokeStyle=stable?good:bad;ctx.lineWidth=1.4;ctx.beginPath();ctx.arc(X(p),Y(v),6.5,0,7);ctx.stroke();
+      // stem to mean, so spread is literal
+      ctx.strokeStyle='rgba(154,167,184,0.35)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(X(p),Y(v));ctx.lineTo(X(p),Y(mu));ctx.stroke();
+    });
+    // axes labels
+    ctx.fillStyle=mut;ctx.font='11px ui-monospace,monospace';ctx.textAlign='center';
+    ctx.fillText('parameter p  (±3 neighborhood sampled)',(x0+x1)/2,H-6); ctx.textAlign='left';
+    ctx.fillText('metric',6,y1+4);
+    // gate badge
+    var lbl=isNaN(covR)?'CoV = NaN (μ≈0)':(stable?'cov_stable ✓ ROBUST':'FRAGILE — CoV > cap');
+    ctx.fillStyle=isNaN(covR)?mut:(stable?good:bad); ctx.font='bold 13px ui-monospace,monospace';
+    ctx.fillText(lbl,x0+8,y1+16);
+    els.out.innerHTML='samples V = ['+vals.map(function(v){return v.toFixed(3);}).join(', ')+']<br>'+
+      'μ = '+mu.toFixed(4)+'   σ<sub>pop</sub> = '+sig.toFixed(4)+'   '+
+      '<b style="color:'+(stable?good:bad)+'">CoV = σ/|μ| = '+(isNaN(covR)?'NaN':covR.toFixed(4))+'</b>   '+
+      'cap = '+cap.toFixed(2)+'  →  '+(stable?'<span style="color:'+good+'">PASS (≤ cap)</span>':'<span style="color:'+bad+'">FAIL (&gt; cap)</span>');
+  }
+  ['shape','cap','height'].forEach(function(k){els[k].addEventListener('input',draw);});
+  draw();
+})();
+</script>
+
+
+<h3 id="lab-mc-sec">Monte-Carlo Survival: does the edge outlive its own shuffle?</h3>
+<p class="lede" style="font-size:16px">Resample the trades, redraw the equity curve a thousand times, and count how many still end in the black.</p>
+  <div class="formula">$$ \text{mc\_pos\_frac} = \frac{1}{N}\sum_{j=1}^{N}\mathbf{1}\!\left[\,E_j(T) > E_j(0)\,\right],\qquad E_j(k)=\prod_{t=1}^{k}\bigl(1+r^{(j)}_t\bigr) $$</div>
+  <div class="formula">$$ r^{(j)}\ \text{= a bootstrap resample of the realized per-trade returns } \{r_1,\dots,r_T\} $$</div>
+  <div class="formula">$$ \text{FRAGILE gate:}\quad \text{mc\_pos\_frac} < 0.50 \;\Rightarrow\; \text{fail}_{MC}=\text{True} $$</div>
+<p>The live gate reads <code>mc_pos &lt; 0.50 &rarr; FRAGILE</code> (fep_robustness.py:132). The pedagogical question it answers: <em>is the equity curve an edge, or one lucky ordering of the same trades?</em> If you keep the exact multiset of per-trade returns but reshuffle/resample the sequence, a genuine edge compounds positive almost regardless of order; a fluke needs its specific lucky path.</p><p>Here we draw \(N\) bootstrap resamples \(r^{(j)}\) of the realized trade returns, compound each into an equity curve \(E_j(k)=\prod_{t\le k}(1+r^{(j)}_t)\), and count the fraction whose <b>final</b> equity clears the \(E_j(0)=1\) start line. That fraction is <code>mc_pos_frac</code> — reported here exactly as \(\frac1N\sum_j \mathbf 1[E_j(T)>1]\). (The production <code>mc_pos_frac</code> in tpi_autogen.py:879 is the sibling <em>significance</em> form — the percentile of the real score inside an OHLC-permutation null — but both share the identical &ge;0.50 survival floor and the same intuition: beat &ge;half the reshuffles.)</p><p>Because bootstrapping preserves the return <em>distribution</em> and only scrambles <em>order</em>, mean drift dominates the survival count. Turn up the mean and the cloud lifts off the start line and <code>mc_pos_frac</code>&rarr;1; flatten the mean toward zero and it collapses toward the coin-flip 0.50 gate — the exact boundary at which the code stops trusting the path.</p>
+<div class="lab" id="mathlab-mc">
+  <div class="lab-h"><span class="tag">MATH</span><b>Monte-Carlo Survival: does the edge outlive its own shuffle?</b></div>
+  <div class="lab-body">
+    <div class="mathgrid">
+      <div><div class="ctrl"><label>Mean trade return &mu; <span class="val" id="mc-muv"></span></label><input type="range" id="mc-mu" min="-2" max="4" step="0.1" value="1.2"></div>
+<div class="ctrl"><label>Trade-return vol &sigma; <span class="val" id="mc-sigv"></span></label><input type="range" id="mc-sig" min="1" max="14" step="0.5" value="6"></div>
+<div class="ctrl"><label>Trades per path T <span class="val" id="mc-tv"></span></label><input type="range" id="mc-t" min="8" max="120" step="1" value="40"></div>
+<div class="ctrl"><label>Total resamples N <span class="val" id="mc-nv"></span></label><input type="range" id="mc-n" min="100" max="4000" step="100" value="1500"></div>
+<div class="seg"><button id="mc-run" type="button">&#9654; Replay</button></div></div>
+      <div><h2 class="sr-only">Monte-Carlo bootstrap: many resampled equity curves drawn as a translucent cloud, with a histogram of final outcomes and a live survival-fraction readout compared to the 0.50 fragility gate.</h2>
+<canvas id="mc-cv" width="720" height="360"></canvas>
+<div style="margin-top:8px;font:600 13px/1.4 system-ui,sans-serif;color:#e7edf5">mc_pos_frac = <span id="mc-out" style="color:#5aa9ff">–</span> <span id="mc-verdict" style="margin-left:10px"></span> <span class="muted" id="mc-prog" style="color:#9aa7b8;font-weight:400;margin-left:10px"></span></div></div>
+    </div>
+    <p class="note tiny" style="margin-bottom:0"><b>What it shows:</b> An edge should survive re-ordering of its own trades: if half the bootstrap resamples of the same return multiset end below breakeven (mc_pos_frac &lt; 0.50), the original equity curve was one lucky path, not a repeatable edge — exactly where the code flips the verdict to FRAGILE.</p>
+  </div>
+</div>
+<script>
+(function(){
+  var cv=document.getElementById('mc-cv'); if(!cv) return; var g=cv.getContext('2d');
+  var W=cv.width,H=cv.height, EL=44,ER=250,ET=16,EB=326; // equity panel
+  var HL=ER+18,HR=W-14; // histogram panel x-range
+  var muE=document.getElementById('mc-mu'),sigE=document.getElementById('mc-sig'),tE=document.getElementById('mc-t'),nE=document.getElementById('mc-n');
+  var out=document.getElementById('mc-out'),verd=document.getElementById('mc-verdict'),prog=document.getElementById('mc-prog');
+  var muv=document.getElementById('mc-muv'),sigv=document.getElementById('mc-sigv'),tv=document.getElementById('mc-tv'),nv=document.getElementById('mc-nv');
+  var C={ink:'#e7edf5',mut:'#9aa7b8',acc:'#5aa9ff',good:'#31c48d',warn:'#f6b73c',bad:'#f0616a',pan:'#161b24',line:'#2a3342'};
+  var pool=[],T=0,N=0,done=0,pos=0,BN=26,hist=new Array(BN).fill(0),lgMin=-1.2,lgMax=1.2,raf=0;
+  function ln1(x){return Math.log(Math.max(1e-6,1+x));}
+  function build(){ // realized per-trade returns as fixed multiset (Gaussian draw, seeded-ish)
+    var mu=+muE.value/100, sig=+sigE.value/100; T=+tE.value; N=+nE.value;
+    muv.textContent=(+muE.value).toFixed(1)+'%'; sigv.textContent=(+sigE.value).toFixed(1)+'%';
+    tv.textContent=T; nv.textContent=N;
+    pool=[]; var s=12345;
+    for(var i=0;i<T;i++){ // Box-Muller with a tiny LCG so the pool is stable per settings
+      s=(1103515245*s+12345)&0x7fffffff; var u1=(s>>>0)/2147483647;
+      s=(1103515245*s+12345)&0x7fffffff; var u2=(s>>>0)/2147483647;
+      var z=Math.sqrt(-2*Math.log(u1+1e-9))*Math.cos(6.2831853*u2);
+      pool.push(mu+sig*z);
+    }
+    done=0;pos=0;hist=new Array(BN).fill(0);
+  }
+  function drawFrame(){
+    g.clearRect(0,0,W,H);
+    // panels
+    g.strokeStyle=C.line;g.lineWidth=1;
+    g.strokeRect(EL+.5,ET+.5,ER-EL,EB-ET); g.strokeRect(HL+.5,ET+.5,HR-HL,EB-ET);
+    // equity start line E=1 (log 0) mid
+    var y0=ET+(EB-ET)*0.5;
+    g.strokeStyle=C.mut;g.setLineDash([4,4]);g.beginPath();g.moveTo(EL,y0);g.lineTo(ER,y0);g.stroke();g.setLineDash([]);
+    g.fillStyle=C.mut;g.font='11px system-ui';g.fillText('E=1 (breakeven)',EL+4,y0-4);
+    g.fillText('equity paths (log)',EL+4,ET+13); g.fillText('final-outcome histogram',HL+6,ET+13);
+    // run a batch of resamples this frame
+    var batch=Math.min(120, N-done);
+    for(var b=0;b<batch;b++){
+      var eq=0, drawThis=(b%3===0); // draw ~1/3 of the batch as cloud, all count
+      if(drawThis){g.beginPath();g.moveTo(EL, y0);}
+      for(var k=0;k<T;k++){
+        var r=pool[(Math.random()*T)|0];      // bootstrap resample (with replacement)
+        eq+=ln1(r);                            // accumulate log-equity
+        if(drawThis){var x=EL+(ER-EL)*(k+1)/T; var y=y0-(eq/lgMax)*((EB-ET)*0.5); g.lineTo(x, Math.max(ET,Math.min(EB,y)));}
+      }
+      if(drawThis){g.strokeStyle=(eq>0?'rgba(49,196,141,0.10)':'rgba(240,97,106,0.11)');g.lineWidth=1;g.stroke();}
+      if(eq>0)pos++;                            // survival: final equity > start
+      var bi=Math.floor((eq-lgMin)/(lgMax-lgMin)*BN); bi=Math.max(0,Math.min(BN-1,bi)); hist[bi]++;
+      done++;
+    }
+    // histogram
+    var hmax=1; for(var i=0;i<BN;i++) if(hist[i]>hmax)hmax=hist[i];
+    var bw=(HR-HL)/BN, zeroBin=Math.floor((0-lgMin)/(lgMax-lgMin)*BN);
+    for(var i=0;i<BN;i++){ var h=(hist[i]/hmax)*(EB-ET-8); var x=HL+i*bw;
+      g.fillStyle=(i>=zeroBin?'rgba(49,196,141,0.85)':'rgba(240,97,106,0.85)');
+      g.fillRect(x+0.5,EB-h,bw-1,h); }
+    // zero line on histogram
+    var zx=HL+zeroBin*bw; g.strokeStyle=C.mut;g.setLineDash([3,3]);g.beginPath();g.moveTo(zx,ET);g.lineTo(zx,EB);g.stroke();g.setLineDash([]);
+    // readout
+    var frac=done?pos/done:0;
+    out.textContent=frac.toFixed(3);
+    var ok=frac>=0.50; verd.textContent=ok?'SURVIVES (≥ 0.50)':'FRAGILE (< 0.50)';
+    verd.style.color=ok?C.good:C.bad;
+    prog.textContent=done+' / '+N+' resamples · '+pos+' ended positive';
+    // 0.50 gate marker: a vertical thermometer at far right of equity panel? draw as label bar under readout via canvas
+    // survival bar
+    var by=EB+ (0); // draw a thin survival gauge along bottom of equity panel
+    g.fillStyle=C.line;g.fillRect(EL,EB-6,ER-EL,4);
+    g.fillStyle=ok?C.good:C.bad;g.fillRect(EL,EB-6,(ER-EL)*Math.min(1,frac),4);
+    var gx=EL+(ER-EL)*0.5; g.strokeStyle=C.warn;g.lineWidth=2;g.beginPath();g.moveTo(gx,EB-9);g.lineTo(gx,EB-1);g.stroke(); // 0.50 gate tick
+    if(done<N) raf=requestAnimationFrame(drawFrame); else raf=0;
+  }
+  function start(){ if(raf)cancelAnimationFrame(raf); build(); drawFrame(); }
+  [muE,sigE,tE,nE].forEach(function(e){e.addEventListener('input',start);});
+  document.getElementById('mc-run').addEventListener('click',start);
+  start();
+})();
+</script>
+
+
+<h3 id="lab-coh-sec">Coherence and the cube reward</h3>
+<p class="lede" style="font-size:16px">A committee that doesn't agree with itself has nothing to say — and cubing makes that brutal.</p>
+  <div class="formula">$$ \text{coherence} = 0.4\,\overline{A} + 0.6\,\min_{i&lt;j} A_{ij}, \qquad A_{ij} = \frac{1}{T}\sum_{t=1}^{T}\mathbf{1}\!\left[\tilde s_{i,t} = \tilde s_{j,t}\right] $$</div>
+  <div class="formula">$$ \overline{A} = \frac{2}{n(n-1)}\sum_{i&lt;j} A_{ij}, \qquad \tilde s = \operatorname{nan\_to\_num}(s,\,0) $$</div>
+  <div class="formula">$$ \text{reward} = \big(\max(0.02,\ \text{coherence})\big)^{3} \qquad \text{(gate: FRAGILE if coherence} &lt; 0.45) $$</div>
+<p>A TPI is a committee of <code>n</code> child indicators, each emitting a sign per bar. <b>Coherence</b> asks how often two children <em>agree in sign</em>. For every pair <code>(i,j)</code> the agreement <code>A_ij</code> is the fraction of the <code>T</code> bars on which their (NaN-filled) raw signals are exactly equal — a bar-by-bar <code>==</code>, not <code>sign()</code>, so in practice this counts matching quantized votes.</p><p>The scalar coherence blends two views: 40% the <em>mean</em> pairwise agreement <span class="muted">(is the room broadly aligned?)</span> and 60% the <em>single worst pair</em> <span class="muted">(is any pair actively fighting?)</span>. The heavy weight on <code>min A_ij</code> is a deliberate destructive-interference guard — two children that cancel each other drag the whole score down even if everyone else nods along. With <code>n&lt;2</code> the score is defined as 1.</p><p>The Optuna objective then multiplies the risk/quality base by <code>coherence³</code> (floored at 0.02 so a zero never annihilates the gradient). Cubing is the punishment: an incoherent committee at 0.5 keeps only <code>0.5³ = 0.125</code> of its edge, while a tight 0.9 keeps <code>0.729</code>. Separately, <code>fep_robustness</code> hard-fails any TPI whose coherence falls below <b>0.45</b> — a noisy committee is FRAGILE regardless of its headline metrics.</p>
+<div class="lab" id="mathlab-coh">
+  <div class="lab-h"><span class="tag">MATH</span><b>Coherence and the cube reward</b></div>
+  <div class="lab-body">
+    <div class="mathgrid">
+      <div><div class="ctrl">
+  <label>Committee size n <span class="val" id="coh-nv">6</span></label>
+  <input type="range" id="coh-n" min="2" max="9" step="1" value="6" />
+</div>
+<div class="ctrl">
+  <label>Alignment (how much the voters march together) <span class="val" id="coh-av">55%</span></label>
+  <input type="range" id="coh-a" min="0" max="100" step="1" value="55" />
+</div>
+<div class="ctrl">
+  <label>Rogue pair (force one pair to fight) <span class="val" id="coh-rv">off</span></label>
+  <input type="range" id="coh-r" min="0" max="100" step="1" value="0" />
+</div></div>
+      <div><div style="display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start">
+  <canvas id="coh-cv" width="360" height="300" style="max-width:100%"></canvas>
+  <div style="min-width:150px;font-family:var(--font-mono,monospace)">
+    <div style="font-size:12px;color:#9aa7b8">mean agreement Ā</div>
+    <div id="coh-mean" style="font-size:20px;color:#e7edf5;margin-bottom:8px">–</div>
+    <div style="font-size:12px;color:#9aa7b8">worst pair min A</div>
+    <div id="coh-min" style="font-size:20px;color:#f6b73c;margin-bottom:8px">–</div>
+    <div style="font-size:12px;color:#9aa7b8">coherence (.4Ā+.6min)</div>
+    <div id="coh-out" style="font-size:26px;color:#5aa9ff;margin-bottom:8px">–</div>
+    <div style="font-size:12px;color:#9aa7b8">reward = coherence³</div>
+    <div id="coh-rew" style="font-size:22px;color:#31c48d">–</div>
+    <div id="coh-verdict" style="margin-top:10px;font-size:13px;font-weight:500">–</div>
+  </div>
+</div></div>
+    </div>
+    <p class="note tiny" style="margin-bottom:0"><b>What it shows:</b> One anti-correlated pair (the 0.6-weighted worst pair) can drag coherence under the 0.45 gate even when the rest of the committee agrees — and because reward is coherence cubed, a noisy committee's edge collapses far faster than it decays.</p>
+  </div>
+</div>
+<script>
+(function(){
+  var cv=document.getElementById('coh-cv'); if(!cv) return;
+  var ctx=cv.getContext('2d');
+  var C={ink:'#e7edf5',mut:'#9aa7b8',acc:'#5aa9ff',good:'#31c48d',warn:'#f6b73c',bad:'#f0616a',line:'#2a3342'};
+  var T=64; // bars
+  var g=function(id){return document.getElementById(id);};
+  function build(n,align,rogue){
+    // each child = array of signs in {-1,+1}, length T. Alignment = prob of matching a shared "market" sign.
+    var rng=1234567;
+    function rand(){rng=(rng*1103515245+12345)&0x7fffffff; return rng/0x7fffffff;}
+    var mkt=[]; for(var t=0;t<T;t++) mkt.push(rand()<0.5?1:-1);
+    var kids=[]; for(var i=0;i<n;i++){var s=[]; for(var t=0;t<T;t++){ s.push(rand()<align? mkt[t] : (rand()<0.5?1:-1)); } kids.push(s);}
+    if(rogue>0){ // make child 1 anti-follow child 0 on a fraction of bars
+      for(var t=0;t<T;t++){ if(rand()<rogue) kids[1][t]=-kids[0][t]; }
+    }
+    return kids;
+  }
+  function pairAgree(a,b){var c=0; for(var t=0;t<T;t++) if(a[t]===b[t]) c++; return c/T;}
+  function compute(kids){
+    var n=kids.length, ags=[], mn=1;
+    for(var i=0;i<n;i++) for(var j=i+1;j<n;j++){var A=pairAgree(kids[i],kids[j]); ags.push(A); if(A<mn) mn=A;}
+    if(n<2) return {mean:1,min:1,coh:1};
+    var mean=ags.reduce(function(x,y){return x+y;},0)/ags.length;
+    var coh=0.4*mean+0.6*mn;
+    return {mean:mean,min:mn,coh:coh};
+  }
+  function draw(){
+    var n=+g('coh-n').value, align=+g('coh-a').value/100, rogue=+g('coh-r').value/100;
+    g('coh-nv').textContent=n; g('coh-av').textContent=Math.round(align*100)+'%';
+    g('coh-rv').textContent= rogue>0? Math.round(rogue*100)+'%':'off';
+    var kids=build(n,align,rogue), r=compute(kids);
+    var coh=Math.max(0.02,r.coh), reward=coh*coh*coh;
+    g('coh-mean').textContent=r.mean.toFixed(3);
+    g('coh-min').textContent=r.min.toFixed(3);
+    g('coh-out').textContent=r.coh.toFixed(3);
+    g('coh-rew').textContent=reward.toFixed(3);
+    var vEl=g('coh-verdict');
+    if(r.coh<0.45){vEl.textContent='coherence < 0.45  →  FRAGILE gate'; vEl.style.color=C.bad;}
+    else {vEl.textContent='passes coherence gate'; vEl.style.color=C.good;}
+    // ---- canvas: top = voter sign grid; bottom = reward curve ----
+    ctx.clearRect(0,0,cv.width,cv.height);
+    var gx=8, gy=8, cw=(cv.width-16)/T, rh=13;
+    for(var i=0;i<n;i++) for(var t=0;t<T;t++){ ctx.fillStyle= kids[i][t]>0? C.acc : C.line; ctx.fillRect(gx+t*cw, gy+i*rh, cw-0.6, rh-2); }
+    ctx.fillStyle=C.mut; ctx.font='10px monospace';
+    ctx.fillText(n+' voters × '+T+' bars  (blue=+1, dark=-1)', gx, gy+n*rh+11);
+    // reward curve area
+    var cy0=gy+n*rh+24, ch=cv.height-cy0-8, cx0=8, cw2=cv.width-16;
+    // axes
+    ctx.strokeStyle=C.line; ctx.lineWidth=1; ctx.beginPath();
+    ctx.moveTo(cx0,cy0); ctx.lineTo(cx0,cy0+ch); ctx.lineTo(cx0+cw2,cy0+ch); ctx.stroke();
+    // gate line at coherence 0.45
+    var gxpix=cx0+0.45*cw2;
+    ctx.strokeStyle=C.bad; ctx.setLineDash([4,3]); ctx.beginPath(); ctx.moveTo(gxpix,cy0); ctx.lineTo(gxpix,cy0+ch); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle=C.bad; ctx.fillText('0.45 gate', gxpix+3, cy0+11);
+    // curve reward=x^3
+    ctx.strokeStyle=C.good; ctx.lineWidth=2; ctx.beginPath();
+    for(var k=0;k<=100;k++){var x=k/100, y=x*x*x; var px=cx0+x*cw2, py=cy0+ch-y*ch; if(k===0)ctx.moveTo(px,py); else ctx.lineTo(px,py);} ctx.stroke();
+    // linear reference (x) faint
+    ctx.strokeStyle=C.mut; ctx.lineWidth=1; ctx.setLineDash([2,3]); ctx.beginPath(); ctx.moveTo(cx0,cy0+ch); ctx.lineTo(cx0+cw2,cy0); ctx.stroke(); ctx.setLineDash([]);
+    // current point
+    var px=cx0+coh*cw2, py=cy0+ch-reward*ch;
+    ctx.strokeStyle=C.warn; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(px,cy0+ch); ctx.lineTo(px,py); ctx.moveTo(cx0,py); ctx.lineTo(px,py); ctx.stroke();
+    ctx.fillStyle=C.acc; ctx.beginPath(); ctx.arc(px,py,5,0,6.283); ctx.fill();
+    ctx.fillStyle=C.ink; ctx.fillText('coherence →', cx0+cw2-70, cy0+ch-4);
+    ctx.save(); ctx.translate(cx0+9,cy0+12); ctx.fillStyle=C.good; ctx.fillText('reward=coh³', 0,0); ctx.restore();
+  }
+  ['coh-n','coh-a','coh-r'].forEach(function(id){g(id).addEventListener('input',draw);});
+  draw();
+})();
+</script>
+
+<h3 id="math-M3" style="color:var(--accent2);border-top:1px solid var(--line);padding-top:16px">The selection-bias math — why we do NOT chase it</h3>
+<p class="muted">The one piece of heavy machinery we tested and rejected. The math shows why best-of-N inflates a Sharpe even with zero edge — and why the deflation is unreliable on a ~6-trial, trade-starved book.</p>
+
+<h3 id="lab-dsr-sec">Deflated Sharpe: why best-of-N lies</h3>
+<p class="lede" style="font-size:16px">Pick the luckiest of N zero-edge strategies and its Sharpe is inflated by chance alone — DSR subtracts that mirage.</p>
+  <div class="formula">$$ SR_0 \;=\; \sqrt{\operatorname{Var}(\hat{SR}_{\text{trials}})}\;\Big[(1-\gamma)\,Z^{-1}\!\big(1-\tfrac{1}{N}\big)+\gamma\,Z^{-1}\!\big(1-\tfrac{1}{Ne}\big)\Big],\quad \gamma=0.5772156649 $$</div>
+  <div class="formula">$$ \mathrm{PSR}(SR^*)=\Phi\!\left(\dfrac{(\hat{SR}-SR^*)\,\sqrt{n-1}}{\sqrt{\,1-\gamma_3\,\hat{SR}+\tfrac{\gamma_4-1}{4}\,\hat{SR}^2\,}}\right) $$</div>
+  <div class="formula">$$ \mathrm{DSR}=\mathrm{PSR}(SR_0)=\Phi\!\left(\dfrac{(\hat{SR}-SR_0)\,\sqrt{n-1}}{\sqrt{\,1-\gamma_3\,\hat{SR}+\tfrac{\gamma_4-1}{4}\,\hat{SR}^2\,}}\right) $$</div>
+<p><b>The lie.</b> Run <em>N</em> zero-edge strategies. Each estimated Sharpe <code>SR&#770;</code> is a noisy draw around 0 with cross-trial spread <code>Var(SR&#770;)</code>. The <em>maximum</em> of N such draws is not 0 — Gaussian extreme-value theory says the expected best-of-N sits at <code>SR&#8320;</code> above, growing like <code>Z&#8315;&#185;(1&#8722;1/N)</code>. That is the deflation benchmark: the Sharpe the luckiest worthless strategy is <em>expected</em> to hit. The <code>&gamma;</code>-blend of <code>Z&#8315;&#185;(1&#8722;1/N)</code> and <code>Z&#8315;&#185;(1&#8722;1/Ne)</code> is Bailey &amp; López de Prado's closed-form for E[max]; <code>&gamma;</code> is Euler–Mascheroni, and <code>Var</code> is the <em>sample</em> variance (ddof=1) of the per-period trial Sharpes.</p><p><b>The correction.</b> PSR is a t-test on the Sharpe: <code>&Phi;</code> of the standardized gap <code>(SR&#770;&#8722;SR*)&radic;(n&#8722;1)</code>, with the denominator widening for negative skew <code>&gamma;&#8323;</code> and fat tails <code>&gamma;&#8324;</code> (non-excess kurtosis). PSR(0) asks "is the edge positive at all?"; DSR just raises the bar from 0 to <code>SR&#8320;</code>. Since <code>SR&#8320;&ge;0</code>, <b>DSR &le; PSR always</b>. Sharpe here is <em>per-period</em> (daily) — no &radic;252 inside.</p><p><b>Why it was reverted here.</b> The generator's effective trial count is the number of distinct combos that competed — under greedy beam search, <code>N&asymp;6</code>. With so few trials <code>Var(SR&#770;)</code> is unestimable, <code>SR&#8320;</code> collapses toward 0, and DSR degenerates to plain PSR(0) (flagged 0.561 vs control 0.568 — indistinguishable). A pre-split PSR pair-filter even made the rotation <em>worse</em> (OOS Sharpe 1.04&rarr;0.34). All three prototypes were reverted; only the genuine forward-decay PSR stays live. Slide N below ~10 to watch <code>SR&#8320;</code> and the deflation vanish.</p>
+<div class="lab" id="mathlab-dsr">
+  <div class="lab-h"><span class="tag">MATH</span><b>Deflated Sharpe: why best-of-N lies</b></div>
+  <div class="lab-body">
+    <div class="mathgrid">
+      <div><div class="ctrl"><label>N trials <span class="val" id="dsr-nv"></span></label><input type="range" id="dsr-n" min="2" max="200" step="1" value="60"></div>
+<div class="ctrl"><label>observed Sharpe SR&#770; (per-period) <span class="val" id="dsr-srv"></span></label><input type="range" id="dsr-sr" min="0" max="0.30" step="0.005" value="0.11"></div>
+<div class="ctrl"><label>trial spread &sigma;(SR&#770;) <span class="val" id="dsr-spreadv"></span></label><input type="range" id="dsr-spread" min="0.01" max="0.12" step="0.005" value="0.05"></div>
+<div class="ctrl"><label>sample length n <span class="val" id="dsr-lenv"></span></label><input type="range" id="dsr-len" min="20" max="1500" step="10" value="500"></div>
+<div class="ctrl"><label>skew &gamma;&#8323; <span class="val" id="dsr-skv"></span></label><input type="range" id="dsr-sk" min="-1.5" max="1.5" step="0.05" value="-0.3"></div>
+<div class="ctrl"><label>kurtosis &gamma;&#8324; (non-excess) <span class="val" id="dsr-kuv"></span></label><input type="range" id="dsr-ku" min="1.5" max="12" step="0.1" value="6"></div>
+<div class="ctrl"><label><input type="checkbox" id="dsr-anim"> resample trials (animate)</label></div></div>
+      <div><canvas id="dsr-cv" width="720" height="360"></canvas>
+<div id="dsr-out" style="font-family:ui-monospace,monospace;font-size:13px;color:#e7edf5;margin-top:8px;line-height:1.7"></div></div>
+    </div>
+    <p class="note tiny" style="margin-bottom:0"><b>What it shows:</b> Selecting the best of N trials pushes the winner's Sharpe up to SR0 = √Var·E[max-of-N] by luck alone; DSR = PSR(SR0) subtracts exactly that mirage — and when N is tiny (~6, as here), SR0 collapses and the whole correction evaporates.</p>
+  </div>
+</div>
+<script>
+(function(){
+var cv=document.getElementById('dsr-cv'); if(!cv) return; var g=cv.getContext('2d');
+var W=cv.width,H=cv.height, EG=0.5772156649015329;
+var ink='#e7edf5',mut='#9aa7b8',acc='#5aa9ff',good='#31c48d',warn='#f6b73c',bad='#f0616a',line='#2a3342';
+function $(s){return document.getElementById(s);}
+// erf -> normal CDF
+function erf(x){var s=x<0?-1:1;x=Math.abs(x);var t=1/(1+0.3275911*x);
+ var y=1-(((((1.061405429*t-1.453152027)*t)+1.421413741)*t-0.284496736)*t+0.254829592)*t*Math.exp(-x*x);return s*y;}
+function Phi(x){return 0.5*(1+erf(x/Math.SQRT2));}
+// inverse normal CDF (Acklam)
+function invPhi(p){if(p<=0)return -1e9;if(p>=1)return 1e9;
+ var a=[-3.969683028665376e1,2.209460984245205e2,-2.759285104469687e2,1.383577518672690e2,-3.066479806614716e1,2.506628277459239];
+ var b=[-5.447609879822406e1,1.615858368580409e2,-1.556989798598866e2,6.680131188771972e1,-1.328068155288572e1];
+ var c=[-7.784894002430293e-3,-3.223964580411365e-1,-2.400758277161838,-2.549732539343734,4.374664141464968,2.938163982698783];
+ var d=[7.784695709041462e-3,3.224671290700398e-1,2.445134137142996,3.754408661907416];
+ var pl=0.02425,q,r;
+ if(p<pl){q=Math.sqrt(-2*Math.log(p));return(((((c[0]*q+c[1])*q+c[2])*q+c[3])*q+c[4])*q+c[5])/((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1);}
+ if(p<=1-pl){q=p-0.5;r=q*q;return(((((a[0]*r+a[1])*r+a[2])*r+a[3])*r+a[4])*r+a[5])*q/(((((b[0]*r+b[1])*r+b[2])*r+b[3])*r+b[4])*r+1);}
+ q=Math.sqrt(-2*Math.log(1-p));return-(((((c[0]*q+c[1])*q+c[2])*q+c[3])*q+c[4])*q+c[5])/((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1);}
+function gauss(){var u=0,v=0;while(u===0)u=Math.random();while(v===0)v=Math.random();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
+function E_maxN(N){return (1-EG)*invPhi(1-1/N)+EG*invPhi(1-1/(N*Math.E));} // in std units
+function psr(sr,srs,n,sk,ku){var den=1-sk*sr+((ku-1)/4)*sr*sr; if(den<=0)return NaN; return Phi((sr-srs)*Math.sqrt(n-1)/Math.sqrt(den));}
+var ids=['n','sr','spread','len','sk','ku'];
+function read(){return{N:+$('dsr-n').value,SR:+$('dsr-sr').value,sp:+$('dsr-spread').value,n:+$('dsr-len').value,sk:+$('dsr-sk').value,ku:+$('dsr-ku').value,anim:$('dsr-anim').checked};}
+var samples=[],lastN=-1,t=0;
+function resample(N,sp){samples=[];for(var i=0;i<N;i++)samples.push(gauss()*sp);}
+function draw(){
+ var p=read();
+ $('dsr-nv').textContent=p.N;$('dsr-srv').textContent=p.SR.toFixed(3);$('dsr-spreadv').textContent=p.sp.toFixed(3);
+ $('dsr-lenv').textContent=p.n;$('dsr-skv').textContent=p.sk.toFixed(2);$('dsr-kuv').textContent=p.ku.toFixed(1);
+ if(p.N!==lastN||samples.length!==p.N){resample(p.N,p.sp);lastN=p.N;}
+ // recompute sample var each frame w/ ddof=1 from stored unit-draws scaled to spread
+ var mx=-1e9,mxi=0,arr=[];for(var i=0;i<samples.length;i++){var v=samples[i]/(samples._sp||p.sp)*p.sp;arr.push(v);if(v>mx){mx=v;mxi=i;}}
+ samples._sp=p.sp;
+ var m=0;for(i=0;i<arr.length;i++)m+=arr[i];m/=arr.length;
+ var vv=0;for(i=0;i<arr.length;i++)vv+=(arr[i]-m)*(arr[i]-m);vv/=Math.max(1,arr.length-1);
+ var emax=E_maxN(p.N), SR0=Math.sqrt(Math.max(0,vv))*emax;
+ var PSR=psr(p.SR,0,p.n,p.sk,p.ku), DSR=psr(p.SR,SR0,p.n,p.sk,p.ku);
+ // ---- draw ----
+ g.clearRect(0,0,W,H);
+ var pad=46, x0=pad,x1=W-pad,y0=24,y1=H-70;
+ // x maps Sharpe in [-lo, hi]
+ var hi=Math.max(0.28,p.SR*1.2,SR0*1.3,mx*1.15), lo=-hi*0.55;
+ function X(s){return x0+(s-lo)/(hi-lo)*(x1-x0);}
+ // baseline
+ g.strokeStyle=line;g.lineWidth=1;g.beginPath();g.moveTo(x0,y1);g.lineTo(x1,y1);g.stroke();
+ // zero tick + axis labels
+ g.fillStyle=mut;g.font='11px ui-monospace,monospace';
+ [lo,0,hi].forEach(function(s){var xx=X(s);g.strokeStyle=line;g.beginPath();g.moveTo(xx,y1);g.lineTo(xx,y1+5);g.stroke();g.fillText(s.toFixed(2),xx-10,y1+18);});
+ g.fillText('per-period Sharpe  →',x1-140,y1+34);
+ // scatter the N trial sharpes as a jittered swarm around 0
+ for(i=0;i<arr.length;i++){var xx=X(arr[i]);var yy=y1-14-((i*53)%(y1-y0-30));
+  g.fillStyle=(i===mxi)?warn:'rgba(90,169,255,0.45)';g.beginPath();g.arc(xx,yy,i===mxi?4.5:2.6,0,7);g.fill();}
+ // SR0 (expected max) vertical band
+ var xs0=X(SR0);g.strokeStyle=warn;g.lineWidth=2;g.setLineDash([5,4]);g.beginPath();g.moveTo(xs0,y0);g.lineTo(xs0,y1);g.stroke();g.setLineDash([]);
+ g.fillStyle=warn;g.fillText('SR₀='+SR0.toFixed(3),xs0+4,y0+10);
+ g.fillStyle=warn;g.fillText('expected max of N',xs0+4,y0+23);
+ // observed SR marker
+ var xsr=X(p.SR);g.strokeStyle=acc;g.lineWidth=2;g.beginPath();g.moveTo(xsr,y0);g.lineTo(xsr,y1);g.stroke();
+ g.fillStyle=acc;g.fillText('SR̂='+p.SR.toFixed(3),xsr+4,y1-8);
+ // highlight actual sampled max tick
+ g.strokeStyle=warn;g.lineWidth=1;g.beginPath();g.moveTo(X(mx),y1-6);g.lineTo(X(mx),y1+6);g.stroke();
+ // PSR / DSR gauge bars top-right
+ function bar(y,lab,val,col){g.fillStyle=mut;g.font='11px ui-monospace,monospace';g.fillText(lab,x1-168,y-3);
+  g.fillStyle='#0d1218';g.fillRect(x1-168,y,150,9);g.fillStyle=col;g.fillRect(x1-168,y,150*Math.max(0,Math.min(1,val)),9);
+  g.fillStyle=ink;g.fillText(val.toFixed(3),x1-168+156-0,y+9);}
+ // (bars drawn in readout instead to avoid clutter) -- keep canvas focused
+ // shaded gap SR0..SR shows what deflation removed
+ if(p.SR>SR0){g.fillStyle='rgba(240,97,106,0.12)';g.fillRect(xs0,y0,xsr-xs0,y1-y0);}
+ // readout
+ var col=DSR>=0.95?good:(DSR>=0.90?warn:bad);
+ var note=p.N<10?'  ⚠ N&lt;10: SR₀ unstable → DSR≈PSR (the revert case)':'';
+ $('dsr-out').innerHTML=
+  'SR₀ (deflation bar) = <b style="color:'+warn+'">'+SR0.toFixed(4)+'</b>'+
+  '   E[max]/σ = '+emax.toFixed(3)+'   Var(SR̂)='+vv.toFixed(5)+' (ddof=1, N='+p.N+')<br>'+
+  'PSR(0) = <b style="color:'+acc+'">'+ (isNaN(PSR)?'NaN':PSR.toFixed(4)) +'</b>'+
+  '   →   DSR = PSR(SR₀) = <b style="color:'+col+'">'+ (isNaN(DSR)?'NaN':DSR.toFixed(4)) +'</b>'+
+  '   (DSR≤PSR always)'+note;
+}
+var raf=null;
+function tick(){var p=read();if(!p.anim){raf=null;return;}t++;if(t%30===0){resample(p.N,p.sp);}draw();raf=requestAnimationFrame(tick);}
+function start(){draw();if(raf==null&&read().anim){raf=requestAnimationFrame(tick);}}
+ids.forEach(function(k){$('dsr-'+k).addEventListener('input',start);});
+$('dsr-anim').addEventListener('change',start);
+start();
+})();
+</script>
+
+
+<!-- ============================ 1 ============================ -->
+<h2 class="section" id="twoaxis"><span class="n">1</span>Two questions, not one: robustness vs stability</h2>
+<p>The old mental model had a single "robustness score." That hides a real distinction. Consider two questions asked of a TPI perturbed the same way:</p>
+<div class="grid2">
+  <div class="card" style="margin:8px 0">
+    <b>Robustness — <span class="muted">does the <em>edge</em> persist?</span></b>
+    <p class="tiny">A strong, risk-adjusted edge (clears the COBRA ratio floors) that is still there after you move parameters &plusmn;3,
+    hold out the recent window, and slice history into folds. High bar. Implies stability.</p>
+  </div>
+  <div class="card" style="margin:8px 0">
+    <b>Stability — <span class="muted">does the <em>behaviour</em> persist?</span></b>
+    <p class="tiny">The strategy behaves dependably under the same perturbations — tight parameter neighbourhood, survives
+    re-optimization, survives path shuffles — <em>without</em> requiring a big edge. Lower bar. Does <em>not</em> imply an edge.</p>
+  </div>
+</div>
+<div class="lab" id="lab-rs">
+  <div class="lab-h"><span class="tag">LAB 1</span><b>Robust &rArr; Stable — the one-way implication</b></div>
+  <div class="lab-body">
+    <p class="tiny muted" style="margin-top:0">Toggle the two questions. Notice there is no "edge but unstable &rarr; ROBUST" cell: an unstable edge is disqualified, not promoted.</p>
+    <div class="grid2">
+      <div>
+        <div class="ctrl"><div class="seg" id="rs-edge"><button data-v="1" class="on">Has a real edge</button><button data-v="0">No edge</button></div></div>
+        <div class="ctrl"><div class="seg" id="rs-stab"><button data-v="1" class="on">Stable</button><button data-v="0">Unstable</button></div></div>
+      </div>
+      <div id="rs-out" style="display:flex;align-items:center;justify-content:center"></div>
+    </div>
+    <div id="rs-grid" style="margin-top:8px"></div>
+  </div>
+</div>
+
+<p>The perturbation axes are concrete and each maps to one measurable test:</p>
+<table>
+<thead><tr><th>Axis</th><th>Perturbation</th><th>Measured by</th><th>Role in the verdict</th></tr></thead>
+<tbody>
+<tr><td><b>Parameter</b></td><td>vary each parameter &plusmn;3 around the tuned point</td><td>worst-metric neighbourhood <b>CoV</b></td><td>hard FRAGILE gate (&gt; cap)</td></tr>
+<tr><td><b>Temporal</b></td><td>re-optimize on rolling folds, test on the held-out tail</td><td><b>WFE</b> = mean OOS/IS ratio (Pardo)</td><td>hard gate — <em>conditional</em> on trade count</td></tr>
+<tr><td><b>Path</b></td><td>shuffle the return path (Monte-Carlo)</td><td><b>MC</b> survival fraction</td><td>hard FRAGILE gate (&lt; 0.50)</td></tr>
+<tr><td><b>Signal</b></td><td>does the committee agree; is turnover sane</td><td><b>coherence</b>, <b>turnover</b></td><td>hard FRAGILE gates</td></tr>
+</tbody>
+</table>
+
+<!-- ============================ 2 ============================ -->
+<h2 class="section" id="floors"><span class="n">2</span>The edge floors — what counts as "a real edge"</h2>
+<p>Edge is judged by <b>absolute, ratio-appropriate floors</b> (calibrated to where our ~40 ratio TPIs actually live — crypto-spot
+bars clear only 0&ndash;10% of them). A metric-set is "green" when it clears <b>at least 3 of 4</b> floors. This absolute basis beat
+excess-over-buy&amp;hold (fooled by ratios that merely beat a terrible passive benchmark) in an explicit bake-off.</p>
+<div class="lab" id="lab-floor">
+  <div class="lab-h"><span class="tag">LAB 2</span><b>Edge-green calculator</b> <span class="muted tiny">— set the four metrics, watch the green count</span></div>
+  <div class="lab-body">
+    <div class="grid2">
+      <div id="floor-ctrls"></div>
+      <div id="floor-out" style="display:flex;flex-direction:column;justify-content:center"></div>
+    </div>
+    <p class="tiny muted">Floors: Sortino &ge; 1.0 &middot; Profit Factor &ge; 1.5 &middot; Omega &ge; 1.15 &middot; Sharpe &ge; 0.7. Green = &ge; 3 of 4.
+    <b>%Profitable</b> and <b>Intra-trade DD</b> are advisory (trend strategies are &lt;50% by design).</p>
+  </div>
+</div>
+
+<!-- ============================ 3 — CENTREPIECE ============================ -->
+<h2 class="section" id="verdict"><span class="n">3</span>The verdict ladder — a live <code>fep_verdict()</code></h2>
+<p>This is the whole model in one widget. The edge conditions (full / recent / sweep / fold) decide <em>whether the edge is real
+and complete</em>; the stability gates decide <em>whether it can be trusted</em>. Stability is checked <b>first</b> and any single failed
+gate forces FRAGILE — that is the <span class="pill robust">robust &rArr; stable</span> enforcement, and it is why a blend can never let one
+healthy factor mask a collapsed one. Drive it:</p>
+<div class="lab" id="lab-verdict">
+  <div class="lab-h"><span class="tag">LIVE</span><b>fep_verdict — faithful in-browser port</b>
+     <span style="margin-left:auto"><button id="v-reset" class="seg"><span style="padding:2px 6px">&#8635; reset</span></button></span></div>
+  <div class="lab-body">
+    <div class="grid2">
+      <div>
+        <h5 style="margin-top:0;color:var(--robust)">Edge (is it real &amp; complete?)</h5>
+        <div id="v-edge"></div>
+        <h5 style="color:var(--fragile)">Stability gates (can it be trusted?)</h5>
+        <div id="v-stab"></div>
+      </div>
+      <div>
+        <div id="v-badge" style="text-align:center;margin-bottom:10px"></div>
+        <div style="text-align:center" class="tiny muted">verdict reason</div>
+        <div id="v-reason" class="detail" style="text-align:center;font-weight:600"></div>
+        <div class="tiny muted" style="margin:14px 0 4px">evaluation trace</div>
+        <div id="v-trace" class="trace"></div>
+      </div>
+    </div>
+    <div class="note tiny" style="margin-bottom:0">Presets:
+      <a href="#verdict" data-preset="robust">a clean ROBUST</a> &middot;
+      <a href="#verdict" data-preset="decay">edge decaying &rarr; BORDERLINE</a> &middot;
+      <a href="#verdict" data-preset="uncertified">stable but WFE-uncertified &rarr; BORDERLINE</a> &middot;
+      <a href="#verdict" data-preset="cov">scattered params &rarr; FRAGILE</a> &middot;
+      <a href="#verdict" data-preset="noedge">no edge &rarr; FRAGILE</a>
+    </div>
+  </div>
+</div>
+<p>The ladder the trace walks (exactly the code — first match wins, top to bottom):</p>
+<div class="ladder" id="v-ladder"></div>
+
+<!-- ============================ 4 ============================ -->
+<h2 class="section" id="stability"><span class="n">4</span>Stability is the FRAGILE floor — a conjunction of hard gates</h2>
+<p>Stability is <b>not</b> a score you average. It is a set of per-axis floors, and failing <em>any one</em> is fatal. We deliberately do
+<em>not</em> gate on a blended "predictability" number, because a blend lets a healthy factor hide a collapsed one — the lesson from a TPI
+whose blend looked fine only because a 0.95 Monte-Carlo and a 6% CoV masked a 0.05 walk-forward. Each gate stands alone:</p>
+<table>
+<thead><tr><th>Gate</th><th>Axis</th><th class="c">Floor</th><th>Fires FRAGILE when&hellip;</th></tr></thead>
+<tbody>
+<tr><td>Walk-forward efficiency (WFE)</td><td>temporal</td><td class="c">&ge; 0.50</td><td>mean OOS/IS ratio &lt; 0.50 <b>and</b> &ge; 30 OOS trades (conditional — &sect;5)</td></tr>
+<tr><td>Worst-metric CoV</td><td>parameter</td><td class="c">&le; 0.20</td><td>the noisiest metric scatters &gt; 20% across the &plusmn;3 sweep</td></tr>
+<tr><td>Monte-Carlo survival</td><td>path</td><td class="c">&ge; 0.50</td><td>fewer than half the shuffled paths stay positive</td></tr>
+<tr><td>Turnover coherence</td><td>behavioural</td><td class="c">&ge; 0.40</td><td>trade rhythm is erratic / degenerate</td></tr>
+<tr><td>Sign coherence</td><td>signal</td><td class="c">&ge; 0.45</td><td>the committee doesn't actually agree</td></tr>
+<tr><td>Cross-asset</td><td>breadth</td><td class="c">&ge; 0.40</td><td>one basket leg is carrying the rest (multi-asset only)</td></tr>
+<tr><td>Min-trades</td><td>validity</td><td class="c">window-scaled</td><td>too few trades to judge anything</td></tr>
+</tbody>
+</table>
+<div class="note">Signal <em>confidence</em> (directional accuracy / IC) is <b>not</b> a gate — near-coin-flip hit rates are normal and healthy for a
+trend system (the edge is in the tails, not the hit rate). It stays a read-only diagnostic.</div>
+
+<!-- ============================ 5 ============================ -->
+<h2 class="section" id="wfe"><span class="n">5</span>Conditional walk-forward — the trade-starvation problem</h2>
+<p>WFE is the load-bearing temporal gate: re-optimize on each fold, test on its held-out tail, and take the <b>trade-weighted</b> mean of
+the OOS/IS performance ratios. &ge; 0.50 means the edge keeps at least half its strength under honest re-optimization (Pardo 2008).</p>
+<p>But there's a catch our book forces on us: <b>trade starvation</b>. These trend signals on short ratio histories trade ~17 times
+<em>total</em> across all folds. At that count a per-fold Sharpe/Sortino is small-sample noise — WFE false-passes and false-fails at random.
+So WFE is <b>conditional</b>: it can only <em>hard-fail</em> a TPI when the folds together hold &ge; <code>WFE_MIN_TRADES = 30</code> OOS trades.
+Below that it becomes advisory — it cannot fail the TPI, but it also cannot <em>certify</em> temporal stability, so a would-be-ROBUST TPI is
+capped at BORDERLINE (<code>wf_uncertified</code>). The distinction is deliberate: <b>measured-unstable &rArr; FRAGILE; unmeasurable &rArr; BORDERLINE.</b></p>
+<!-- ============================ 6 ============================ -->
+<h2 class="section" id="cov"><span class="n">6</span>Parameter CoV — why spread <em>is</em> a gate</h2>
+<p>Around the tuned point we sweep each parameter &plusmn;3 and recompute the metrics. The <b>coefficient of variation</b> (std/mean) of the
+<em>worst</em> metric measures how much the edge scatters when you nudge the knobs. A tight neighbourhood (low CoV) means a <em>plateau</em> —
+the edge doesn't depend on hitting an exact parameter. A wide one means a <em>spike</em> you probably curve-fit. CoV &gt; the cap (default 0.20)
+is a hard FRAGILE gate; the Auto-TPI pane can tighten the cap per run, and — as of the June-2026 reconciliation — that slider reaches the
+<em>live</em> verdict, not just the display.</p>
+<!-- ============================ 7 ============================ -->
+<h2 class="section" id="annual"><span class="n">7</span>Annualization — same floors, correct scale</h2>
+<p>Sharpe and Sortino are annualized by \(\sqrt{\text{periods/yr}}\). Crypto trades 24/7 (365 bars/yr); equities trade ~252 sessions.
+Using 365 for a stock inflates its Sharpe/Sortino by \(\sqrt{365/252}\approx1.20\times\) against floors calibrated on the crypto book —
+a spurious credit for a whole asset class. The June-2026 fix makes annualization asset-class-aware (<code>backtester.annualization()</code>,
+set per run by the autogen wrapper). Profit Factor and Omega are scale-invariant, so <b>only Sharpe/Sortino move</b>.</p>
+<div class="note">Re-scoring the 16 stock TPIs on the 252 basis produced <b>zero verdict flips</b> — the correction never crosses a floor decisively
+(it can only lower Sharpe/Sortino, so it can only ever demote, and none were that close). It is a units-correctness fix, not a re-labelling.</div>
+
+<!-- ============================ 8 — OPTIMIZER ============================ -->
+<h2 class="section" id="pipeline"><span class="n">8</span>How the optimizer employs these principles</h2>
+<p>The principles above are the <em>filter</em>. The optimizer is what walks the search space trying to hand that filter something it will
+pass. Click each stage:</p>
+<div class="lab" id="lab-pipe">
+  <div class="lab-h"><span class="tag">FLOW</span><b>Generation pipeline</b></div>
+  <div class="lab-body">
+    <div class="flow" id="pipe-flow"></div>
+    <div class="detail" id="pipe-detail">Click a stage above.</div>
+  </div>
+</div>
+
+<!-- ============================ 9 ============================ -->
+<h2 class="section" id="search"><span class="n">9</span>The two-regime candidate search &amp; the coherence reward</h2>
+<p>A na&iuml;ve top-k beam builds redundant committees — five flavours of the same moving average — because coherence rewards indicators that
+agree, and same-family indicators trivially agree. So the search runs <b>two regimes</b> and merges them:</p>
+<div class="grid2">
+  <div class="card" style="margin:8px 0"><b>Diverse regime</b><p class="tiny">A family taxonomy (MA, momentum, band, oscillator&hellip;) with a
+    <code>MAX_PER_FAMILY = 2</code> cap. Forces the committee to span mechanisms, so agreement means something.</p></div>
+  <div class="card" style="margin:8px 0"><b>Free regime</b><p class="tiny">No family cap — lets a genuinely strong same-family stack win when it
+    deserves to. Merged via weak-dominance top-k so the free beam is never silently evicted by the diverse one.</p></div>
+</div>
+<p>The score keeps a <b>coherence reward</b>, <code>score = base &middot; coherence&sup3;</code>. We tested dropping it and rejected that:
+without it the committee's signal degrades into noise (an incoherent committee is just a random ensemble). Diversity is enforced by the
+<em>family cap</em>, not by punishing coherence — the two are orthogonal, and conflating them was the original redundancy bug.</p>
+
+<!-- ============================ 10 ============================ -->
+<h2 class="section" id="objective"><span class="n">10</span>The objective — and three things we tested and rejected</h2>
+<p>The search tunes parameters to maximize an <b>in-sample</b> hybrid score, then robustness is checked as a <b>post-hoc filter</b>. It's
+natural to ask: shouldn't the search itself <em>seek</em> robustness? We prototyped exactly that, and the honest answer is no — at the
+per-pair layer, robustness effort doesn't pay:</p>
+<table>
+<thead><tr><th>Tested lever</th><th>Idea</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td>Robustness-seeking objective</td><td>maximize temporal consistency across IS thirds instead of raw IS fit</td><td><b>Net negative.</b> Lowered WFE (the gate that matters), only mildly improved CoV (the near-inert one), and cost edge. 0 verdicts better / 9 same / 1 worse.</td></tr>
+<tr><td>Deflated Sharpe Ratio (DSR)</td><td>penalize the winner for how many candidates were tried</td><td><b>Reverted.</b> N&asymp;6 trials is too few for the correction; PSR-filtering made the portfolio worse in a confound-controlled test.</td></tr>
+<tr><td>Per-pair PSR gate</td><td>require the pair's Sharpe to be statistically significant</td><td><b>Reverted.</b> Didn't move the portfolio; the signal is swamped by small-sample noise on a trade-starved book.</td></tr>
+</tbody>
+</table>
+<p>Three independent confirmations that <b>the verdict is a filter, not a target</b>. Trying to optimize <em>for</em> robustness on 17 trades
+just trades the axis that gates for the one that doesn't. The lever that actually helps lives one level up — portfolio construction
+(rotation sizing / concentration / macro gate), measured on the rotation, not the pair.</p>
+
+<!-- ============================ 11 ============================ -->
+<h2 class="section" id="descend"><span class="n">11</span>Size-descending — strive for robust-5, degrade gracefully</h2>
+<p>Your philosophy, encoded literally: try hardest for a <b>ROBUST 5-indicator</b> committee of taxonomy-differentiated indicators; if that
+isn't reachable, accept a <b>STABLE 5</b>; and only if <em>that</em> fails, drop to 4, then 3&hellip; keeping the <b>largest non-FRAGILE</b> result.
+If every size is FRAGILE, keep the largest (nothing is silently shipped as robust). Step it:</p>
+<div class="lab" id="lab-desc">
+  <div class="lab-h"><span class="tag">LAB 11</span><b>Fallback ladder</b></div>
+  <div class="lab-body">
+    <div class="grid2">
+      <div>
+        <p class="tiny muted" style="margin-top:0">Set the best verdict reachable at each size, then step the search:</p>
+        <div id="desc-ctrls"></div>
+        <div style="margin-top:10px"><button id="desc-step" class="seg"><span style="padding:5px 12px">&#9654; step search</span></button>
+          <button id="desc-reset" class="seg"><span style="padding:5px 12px">&#8635;</span></button></div>
+      </div>
+      <div><div class="ladder" id="desc-ladder"></div><div id="desc-out" class="detail" style="margin-top:8px"></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================ 12 ============================ -->
+<h2 class="section" id="ceiling"><span class="n">12</span>The ceiling is the asset, not the search</h2>
+<p>Put &sect;10 together and a clear picture emerges: the per-pair robustness layer is <b>at the asset ceiling</b>. On a book with a median of 17
+OOS trades, the honest state of the world is that <em>most</em> TPIs cap at BORDERLINE — not because the search is weak, but because there
+isn't enough out-of-sample evidence to <em>certify</em> a temporal edge. That is a feature: the label tells the truth about what we can and
+cannot verify. The equity is untouched by all of this — the rotation votes every signal ungated; the verdict is an honest label, never a
+capital gate.</p>
+
+<!-- ============================ 13 ============================ -->
+<h2 class="section" id="decisions"><span class="n">13</span>Affirmed decisions — the theory we committed to</h2>
+<p class="muted tiny">Per policy, decisions taken while testing are recorded here as affirmed theory, so we never re-litigate why a choice was made.</p>
+
+<div class="aff"><div class="d">AFFIRMED &middot; 2026-06</div><h4>CoV &gt; cap is a hard FRAGILE gate, not an advisory.</h4>
+  <p class="tiny" style="margin:0">Instability on the parameter axis means the edge is not dependable. An earlier draft demoted CoV to "advisory / never the gate";
+  that contradicted the philosophy (instability &rArr; FRAGILE) and was corrected. The docs were stale; the code was right.</p></div>
+<div class="aff"><div class="d">AFFIRMED &middot; 2026-06</div><h4>WFE is the load-bearing temporal gate — but conditional on &ge; 30 OOS trades.</h4>
+  <p class="tiny" style="margin:0">Measured-unstable &rArr; FRAGILE; unmeasurable (too few trades) &rArr; BORDERLINE via <code>wf_uncertified</code>. This is the single biggest
+  reason the book sits mostly at BORDERLINE, and that is the correct, honest state.</p></div>
+<div class="aff"><div class="d">AFFIRMED &middot; 2026-06</div><h4>Keep the coherence&sup3; reward; enforce diversity with a family cap instead.</h4>
+  <p class="tiny" style="margin:0">Dropping coherence turns the committee into noise. Redundancy is solved by the <code>MAX_PER_FAMILY</code> taxonomy cap in the diverse
+  regime — orthogonal to the coherence reward.</p></div>
+<div class="aff"><div class="d">AFFIRMED &middot; 2026-07</div><h4>The verdict is a filter, not a search target.</h4>
+  <p class="tiny" style="margin:0">Robustness-seeking objective, DSR, and per-pair PSR were each prototyped and rejected (net-negative or inert). The per-pair layer is at
+  the asset ceiling; the real lever is portfolio construction on the rotation.</p></div>
+<div class="aff"><div class="d">AFFIRMED &middot; 2026-07</div><h4>Annualization is asset-class-aware (crypto 365 / stock 252).</h4>
+  <p class="tiny" style="margin:0">Removes a spurious ~1.20&times; Sharpe/Sortino credit on the stock sleeve. Re-scoring the 16 stock TPIs produced zero verdict flips — a
+  units fix, not a re-labelling.</p></div>
+<div class="aff"><div class="d">OPEN &middot; flagged 2026-07</div><h4>SMSUNGSKHYNIX carries a hand-forced verdict.</h4>
+  <p class="tiny" style="margin:0">Its stored FRAGILE is internally contradictory (<code>trades_ok=True</code> yet reason "too few trades (preserved)") and is not
+  reproducible by the current <code>fep_verdict</code> (which would call it BORDERLINE). Preserved untouched pending a conscious decision;
+  it should be regenerated cleanly rather than patched.</p></div>
+
+<div class="foot">
+  <p>Live verdict: <code>RSPS/fep_robustness.py &middot; fep_verdict()</code> — the single source of truth. Optimizer:
+  <code>RSPS/tpi_autogen.py</code>. Metrics engine: <code>RSPS/backtester.py</code>. The legacy static explainer is preserved at
+  <code>robustness_methodology_legacy.html</code>. Everything interactive on this page runs the production thresholds verbatim; if the code
+  changes, this page must change with it.</p>
+</div>
+
+</main>
+</div>
+
+<script>
+/* ============================================================================
+   Production thresholds — kept in sync with fep_robustness.py
+   ============================================================================ */
+const FLOORS = {Sortino:1.0, "Profit Factor":1.5, Omega:1.15, Sharpe:0.7};
+const EDGE_GREEN_MIN = 3;
+const WFE_FLOOR = 0.50, WFE_MIN_TRADES = 30;
+const MC_FLOOR = 0.50, COH_FLOOR = 0.45, TURN_FLOOR = 0.40, XA_FLOOR = 0.40;
+const RECENCY_FLOOR = 0.50;
+const K_ANN = Math.sqrt(252/365); // 0.8309
+
+const $ = s => document.querySelector(s);
+const el = (t,c,h)=>{const e=document.createElement(t); if(c)e.className=c; if(h!=null)e.innerHTML=h; return e;};
+const pill = v => `<span class="pill ${v==='ROBUST'?'robust':v==='BORDERLINE'?'border':'fragile'}">${v}</span>`;
+const rgb = v => v==='robust'?'49,196,141':v==='border'?'246,183,60':'240,97,106';
+
+/* ---- faithful fep_verdict port ------------------------------------------- */
+function fepVerdict(inp){
+  const has_full = inp.fullGreens >= EDGE_GREEN_MIN;
+  const has_oos  = inp.oosGreens != null && inp.oosGreens >= EDGE_GREEN_MIN;
+  const persist_ok = inp.worstGreens >= EDGE_GREEN_MIN;
+  const persist_time = (inp.foldGreens == null) || (inp.foldGreens >= EDGE_GREEN_MIN);
+  const wf_present = inp.wfeRatio != null;
+  const wf_certifiable = inp.wfTrades >= WFE_MIN_TRADES;
+  const wf_fail = wf_present && inp.wfeRatio < WFE_FLOOR;
+  const wf_stable = !(wf_fail && wf_certifiable);
+  const wf_uncertified = wf_present && !wf_certifiable;
+  const cov_stable = !(inp.covWorst != null && inp.covWorst > inp.covCap);
+  const edge_stable = wf_stable && cov_stable;
+  const crit = [];
+  if(!wf_stable) crit.push(`unstable WFE ${inp.wfeRatio.toFixed(2)} < ${WFE_FLOOR.toFixed(2)}`);
+  if(!cov_stable) crit.push(`unstable CoV ${(inp.covWorst*100).toFixed(0)}% > ${(inp.covCap*100).toFixed(0)}%`);
+  if(inp.mc != null && inp.mc < MC_FLOOR) crit.push("MC shuffle");
+  if(inp.coh != null && inp.coh < COH_FLOOR) crit.push("coherence");
+  if(inp.turn != null && inp.turn < TURN_FLOOR) crit.push("turnover");
+  if(inp.xasset != null && inp.xasset < XA_FLOOR) crit.push("cross-asset");
+  if(!inp.tradesOk) crit.push("too few trades");
+  const critical = crit.length>0;
+
+  let verdict, why, branch;
+  if(critical){ verdict="FRAGILE"; why="hard gate: "+crit.join(", "); branch=0; }
+  else if(!has_full && !has_oos){ verdict="FRAGILE"; why=`no edge (full ${inp.fullGreens}/4, OOS ${inp.oosGreens}/4)`; branch=1; }
+  else if(has_full && has_oos && persist_ok && persist_time && edge_stable){ verdict="ROBUST"; why="real edge, persistent AND stable"; branch=2; }
+  else if(has_full && !has_oos){ verdict="BORDERLINE"; why=`edge decaying (full ${inp.fullGreens}/4 but OOS ${inp.oosGreens}/4)`; branch=3; }
+  else if(has_oos && !has_full){ verdict="BORDERLINE"; why=`recent-only edge (OOS ${inp.oosGreens}/4 but full ${inp.fullGreens}/4)`; branch=4; }
+  else if(!persist_ok){ verdict="BORDERLINE"; why=`edge does not persist across the sweep (${inp.worstGreens}/4)`; branch=5; }
+  else { verdict="BORDERLINE"; why=`edge collapses in an interior fold (${inp.foldGreens}/4)`; branch=6; }
+
+  let recency_capped=false, wfe_capped=false;
+  if(verdict==="ROBUST" && inp.recentGen!=null && inp.recentGen<RECENCY_FLOOR){ verdict="BORDERLINE"; why="recency cap (recent-fold edge < 0.50)"; recency_capped=true; branch=7; }
+  if(verdict==="ROBUST" && wf_uncertified){ verdict="BORDERLINE"; why=`WFE uncertified (${inp.wfTrades} OOS trades < ${WFE_MIN_TRADES}) — stable but temporally unverifiable`; wfe_capped=true; branch=8; }
+
+  return {verdict, why, branch, crit, has_full, has_oos, persist_ok, persist_time,
+          wf_stable, cov_stable, wf_uncertified, edge_stable, recency_capped, wfe_capped};
+}
+
+/* ============================================================================ LAB 1 */
+(function(){
+  const seg=(id,cb)=>{const g=$('#'+id);g.querySelectorAll('button').forEach(b=>b.onclick=()=>{g.querySelectorAll('button').forEach(x=>x.classList.remove('on'));b.classList.add('on');cb();});};
+  const get=id=>+$('#'+id).querySelector('.on').dataset.v;
+  function draw(){
+    const edge=get('rs-edge'), stab=get('rs-stab');
+    let v = !stab ? 'FRAGILE' : (edge ? 'ROBUST' : 'BORDERLINE');
+    const col=v==='ROBUST'?'robust':v==='BORDERLINE'?'border':'fragile';
+    $('#rs-out').innerHTML = `<div class="badge-big" style="background:rgba(${rgb(col)},.16);color:var(--${col})">${v}</div>`;
+    const cells=[['Edge','Stable','ROBUST'],['Edge','Unstable','FRAGILE'],['No edge','Stable','BORDERLINE'],['No edge','Unstable','FRAGILE']];
+    $('#rs-grid').innerHTML='<table><thead><tr><th></th><th class="c">Stable</th><th class="c">Unstable</th></tr></thead><tbody>'+
+      ['Edge','No edge'].map(rowE=>'<tr><th>'+rowE+'</th>'+['Stable','Unstable'].map(colS=>{
+          const c=cells.find(x=>x[0]===rowE&&x[1]===colS);
+          const on=(rowE===(edge?'Edge':'No edge'))&&(colS===(stab?'Stable':'Unstable'));
+          return `<td class="c" style="${on?'outline:2px solid var(--accent);':''}">${pill(c[2])}</td>`;
+        }).join('')+'</tr>').join('')+'</tbody></table>';
+  }
+  seg('rs-edge',draw); seg('rs-stab',draw); draw();
+})();
+
+/* ============================================================================ LAB 2 */
+(function(){
+  const M=[['Sortino',173,60,320],['Profit Factor',180,80,320],['Omega',122,80,220],['Sharpe',113,20,220]];
+  const box=$('#floor-ctrls');
+  M.forEach(([k,init,lo,hi])=>{
+    const d=el('div','ctrl'); const id='fl-'+k.replace(/\W/g,'');
+    d.innerHTML=`<label>${k} <span class="val" id="${id}v"></span></label><input type="range" id="${id}" min="${lo}" max="${hi}" value="${init}">`;
+    box.appendChild(d);
+  });
+  function draw(){
+    let g=0, rows='';
+    M.forEach(([k])=>{const id='fl-'+k.replace(/\W/g,''); const v=+$('#'+id).value/100; $('#'+id+'v').textContent=v.toFixed(2);
+      const ok=v>=FLOORS[k]; if(ok)g++;
+      rows+=`<div class="trace" style="margin:0"><div class="row"><span class="dot ${ok?'pass':'fail'}"></span>${k}<span class="why">${v.toFixed(2)} ${ok?'&ge;':'&lt;'} ${FLOORS[k]}</span></div></div>`;});
+    const green=g>=EDGE_GREEN_MIN;
+    $('#floor-out').innerHTML=rows+`<div style="text-align:center;margin-top:10px" class="badge-big">${g}/4 — <span style="color:var(--${green?'good':'bad'})">${green?'GREEN edge':'not green'}</span></div>`;
+  }
+  box.querySelectorAll('input').forEach(i=>i.oninput=draw); draw();
+})();
+
+/* ============================================================================ LAB 3 — live verdict */
+(function(){
+  const state = {
+    fullGreens:4, oosGreens:4, worstGreens:4, foldGreens:4,
+    wfeRatio:0.80, wfTrades:45, covWorst:0.10, covCap:0.20,
+    mc:0.85, coh:0.75, turn:0.70, xasset:0.60, tradesOk:true, recentGen:0.80
+  };
+  const edgeCtl=[['fullGreens','Full-period edge (green /4)',0,4],['oosGreens','Recent / OOS edge (green /4)',0,4],
+                 ['worstGreens','Worst parameter-sweep row (green /4)',0,4],['foldGreens','Worst time fold (green /4)',0,4]];
+  const stabCtl=[['wfeRatio','WFE mean OOS/IS ratio',0,150,100],['wfTrades','Total OOS trades (WFE certifiability)',0,80,1],
+                 ['covWorst','Worst-metric CoV',0,45,100,'%'],['covCap','CoV cap (slider)',5,40,100,'%'],
+                 ['mc','Monte-Carlo survival',0,100,100],['coh','Sign coherence',0,100,100],
+                 ['turn','Turnover coherence',0,100,100],['xasset','Cross-asset',0,100,100],['recentGen','Recent-fold generalization',0,100,100]];
+  function mk(box,list){
+    list.forEach(([key,lab,lo,hi,scale,unit])=>{
+      scale=scale||1;
+      const d=el('div','ctrl');
+      d.innerHTML=`<label>${lab} <span class="val" id="vv-${key}"></span></label><input type="range" id="vc-${key}" min="${lo}" max="${hi}" step="1" value="0">`;
+      box.appendChild(d);
+      const inp=d.querySelector('input');
+      inp._key=key; inp._scale=scale; inp._unit=unit||'';
+      inp.value = (state[key]*scale);
+      inp.oninput=()=>{ state[key]= (+inp.value)/scale; render(); };
+    });
+  }
+  mk($('#v-edge'),edgeCtl); mk($('#v-stab'),stabCtl);
+  const td=el('div','ctrl'); td.innerHTML=`<label>Min-trades gate</label><div class="seg" id="vc-tradesOk"><button data-v="1" class="on">enough trades</button><button data-v="0">too few</button></div>`;
+  $('#v-stab').appendChild(td);
+  td.querySelectorAll('button').forEach(b=>b.onclick=()=>{td.querySelectorAll('button').forEach(x=>x.classList.remove('on'));b.classList.add('on');state.tradesOk=+b.dataset.v===1;render();});
+
+  const LADDER=[
+    ['0','Any stability gate failed?','&rarr; FRAGILE (names the gate)'],
+    ['1','No edge full AND no edge OOS?','&rarr; FRAGILE (no edge anywhere)'],
+    ['2','Full &and; OOS &and; sweep &and; fold &and; stable?','&rarr; ROBUST'],
+    ['3','Full edge but not OOS?','&rarr; BORDERLINE (decaying)'],
+    ['4','OOS edge but not full?','&rarr; BORDERLINE (recent-only)'],
+    ['5','Edge does not persist across sweep?','&rarr; BORDERLINE'],
+    ['6','Collapses in an interior fold?','&rarr; BORDERLINE'],
+    ['7','ROBUST but recent-fold &lt; 0.50?','&rarr; BORDERLINE (recency cap)'],
+    ['8','ROBUST but WFE uncertified (&lt;30 tr)?','&rarr; BORDERLINE (uncertified)']
+  ];
+  $('#v-ladder').innerHTML=LADDER.map(([i,q,a])=>`<div class="step" data-b="${i}"><span class="idx">${i}</span><div><b>${q}</b><div class="tiny muted">${a}</div></div></div>`).join('');
+
+  function fmt(inp){ const v=state[inp._key]; return inp._unit==='%'?(v*100).toFixed(0)+'%':(inp._scale===1?v:v.toFixed(2)); }
+  function render(){
+    document.querySelectorAll('#v-edge input, #v-stab input').forEach(inp=>{$('#vv-'+inp._key).textContent=fmt(inp);});
+    const r=fepVerdict(state);
+    const col=r.verdict==='ROBUST'?'robust':r.verdict==='BORDERLINE'?'border':'fragile';
+    $('#v-badge').innerHTML=`<div class="badge-big" style="background:rgba(${rgb(col)},.16);color:var(--${col})">${r.verdict}</div>`;
+    $('#v-reason').textContent=r.why;
+    const g=(lab,ok,why)=>`<div class="row"><span class="dot ${ok===null?'na':ok?'pass':'fail'}"></span>${lab}<span class="why">${why}</span></div>`;
+    let t='';
+    t+=g('WFE stable',r.wf_stable,r.wf_uncertified?`uncertified (${state.wfTrades}&lt;30) &rarr; advisory`:(state.wfeRatio>=WFE_FLOOR?`${state.wfeRatio.toFixed(2)} &ge; 0.50`:`${state.wfeRatio.toFixed(2)} &lt; 0.50 &amp; &ge;30tr`));
+    t+=g('CoV stable',r.cov_stable,`${(state.covWorst*100).toFixed(0)}% vs cap ${(state.covCap*100).toFixed(0)}%`);
+    t+=g('MC / coherence / turnover / x-asset', !(r.crit.some(c=>['MC shuffle','coherence','turnover','cross-asset'].includes(c))), 'path / behaviour gates');
+    t+=g('Min-trades', state.tradesOk, state.tradesOk?'ok':'too few');
+    t+=g('Edge — full', r.has_full, state.fullGreens+'/4');
+    t+=g('Edge — OOS', r.has_oos, state.oosGreens+'/4');
+    t+=g('Edge — sweep', r.persist_ok, state.worstGreens+'/4');
+    t+=g('Edge — fold', r.persist_time, state.foldGreens+'/4');
+    $('#v-trace').innerHTML=t;
+    document.querySelectorAll('#v-ladder .step').forEach(s=>{const b=+s.dataset.b; s.classList.toggle('hit',b===r.branch); s.classList.toggle('skip',b>r.branch);});
+  }
+  const presets={
+    robust:{fullGreens:4,oosGreens:4,worstGreens:4,foldGreens:4,wfeRatio:0.85,wfTrades:45,covWorst:0.08,covCap:0.20,mc:0.9,coh:0.8,turn:0.75,xasset:0.6,tradesOk:true,recentGen:0.8},
+    decay:{fullGreens:4,oosGreens:1,worstGreens:4,foldGreens:4,wfeRatio:0.7,wfTrades:45,covWorst:0.1,covCap:0.20,mc:0.8,coh:0.7,turn:0.7,xasset:0.6,tradesOk:true,recentGen:0.7},
+    uncertified:{fullGreens:4,oosGreens:4,worstGreens:4,foldGreens:4,wfeRatio:1.4,wfTrades:12,covWorst:0.06,covCap:0.20,mc:0.85,coh:0.8,turn:0.75,xasset:0.6,tradesOk:true,recentGen:0.8},
+    cov:{fullGreens:4,oosGreens:4,worstGreens:4,foldGreens:4,wfeRatio:0.8,wfTrades:45,covWorst:0.28,covCap:0.20,mc:0.85,coh:0.8,turn:0.75,xasset:0.6,tradesOk:true,recentGen:0.8},
+    noedge:{fullGreens:1,oosGreens:1,worstGreens:1,foldGreens:2,wfeRatio:0.8,wfTrades:45,covWorst:0.1,covCap:0.20,mc:0.85,coh:0.8,turn:0.75,xasset:0.6,tradesOk:true,recentGen:0.8}
+  };
+  function apply(p){Object.assign(state,presets[p]);
+    document.querySelectorAll('#v-edge input, #v-stab input').forEach(inp=>inp.value=state[inp._key]*inp._scale);
+    const tb=$('#vc-tradesOk');tb.querySelectorAll('button').forEach(x=>x.classList.toggle('on',(+x.dataset.v===1)===state.tradesOk));
+    render();}
+  document.querySelectorAll('[data-preset]').forEach(a=>a.onclick=e=>{e.preventDefault();apply(a.dataset.preset);});
+  $('#v-reset').onclick=()=>apply('robust');
+  render();
+})();
+
+
+
+
+
+
+
+/* ============================================================================ LAB 8 — pipeline */
+(function(){
+  const stages=[
+    ['S1','Screen','Tune every indicator solo; drop dead-on-tuning and flat/degenerate children before they can enter a committee.'],
+    ['S2','Candidate search','Two regimes merged: family-capped diverse beam + free beam (weak-dominance top-k). Score = base &middot; coherence&sup3;.'],
+    ['S3','Robustness','For each finalist compute OOS, ±3 parameter sweep (CoV), Monte-Carlo, walk-forward folds, coherence, cross-asset.'],
+    ['S4','Verdict','fep_verdict() labels ROBUST / BORDERLINE / FRAGILE — stability gates first, then the edge ladder.'],
+    ['S5','Size-descending','FRAGILE at size 5? retry 4, then 3… keep the largest non-FRAGILE; strive robust-5 &rarr; stable-5 &rarr; reduce.'],
+    ['S6','Persist','Write the preset + robustness report; regenerate the Pine. Equity is untouched — the label never gates capital.']
+  ];
+  const flow=$('#pipe-flow');
+  flow.innerHTML=stages.map((s,i)=>`<div class="stage" data-i="${i}"><div class="st">${s[0]}</div><h5>${s[1]}</h5><p>${i<stages.length-1?'&#9656;':''}</p></div>`).join('');
+  const sel=i=>{flow.querySelectorAll('.stage').forEach(x=>x.classList.toggle('sel',+x.dataset.i===i));$('#pipe-detail').innerHTML=`<b>${stages[i][1]}.</b> ${stages[i][2]}`;};
+  flow.querySelectorAll('.stage').forEach(s=>s.onclick=()=>sel(+s.dataset.i)); sel(1);
+})();
+
+/* ============================================================================ LAB 11 — size-descending */
+(function(){
+  const sizes=[5,4,3,2];
+  const state={5:'FRAGILE',4:'STABLE',3:'ROBUST',2:'STABLE'};
+  const box=$('#desc-ctrls');
+  box.innerHTML=sizes.map(s=>`<div class="ctrl"><label>Best reachable at size ${s}</label><div class="seg" data-size="${s}">
+     <button data-v="ROBUST">ROBUST</button><button data-v="STABLE">STABLE</button><button data-v="FRAGILE">FRAGILE</button></div></div>`).join('');
+  box.querySelectorAll('.seg').forEach(g=>{const s=g.dataset.size;g.querySelectorAll('button').forEach(b=>{if(b.dataset.v===state[s])b.classList.add('on');
+     b.onclick=()=>{g.querySelectorAll('button').forEach(x=>x.classList.remove('on'));b.classList.add('on');state[s]=b.dataset.v;reset();};});});
+  let cur=0, accepted=null;
+  function render(){
+    $('#desc-ladder').innerHTML=sizes.map((s,i)=>{
+      const v=state[s]; const done=i<cur; const active=i===cur&&accepted===null;
+      const isAcc = accepted && accepted.size===s;
+      return `<div class="step ${isAcc?'hit':done?'skip':''}" style="${active?'border-color:var(--accent)':''}">
+        <span class="idx">size ${s}</span><div><b>${pill(v==='STABLE'?'BORDERLINE':v)}</b> <span class="tiny muted">${v==='STABLE'?'(stable / non-FRAGILE)':''}</span></div>
+        <span class="why tiny" style="margin-left:auto">${isAcc?'&#10003; accepted':done?'FRAGILE &rarr; descend':active?'&larr; evaluating':''}</span></div>`;
+    }).join('');
+    $('#desc-out').innerHTML = accepted
+      ? `Accepted <b>size ${accepted.size}</b> — ${pill(accepted.v==='STABLE'?'BORDERLINE':accepted.v)}. ${accepted.v==='FRAGILE'?'Every size was FRAGILE &rarr; kept the largest (honest: nothing shipped as robust).':'Stopped at the first non-FRAGILE, largest-size result.'}`
+      : `Evaluating size ${sizes[cur]}… press <span class="kbd">&#9654; step</span>.`;
+  }
+  function step(){
+    if(accepted) return;
+    const s=sizes[cur], v=state[s];
+    if(v!=='FRAGILE'){ accepted={size:s,v}; }
+    else if(cur===sizes.length-1){ accepted={size:sizes[0],v:'FRAGILE'}; }
+    else { cur++; }
+    render();
+  }
+  function reset(){cur=0;accepted=null;render();}
+  $('#desc-step').onclick=step; $('#desc-reset').onclick=reset; reset();
+})();
+</script>
+<script>window.addEventListener("load",function(){if(window.MathJax&&MathJax.typesetPromise){MathJax.typesetPromise();}});</script>
+</body>
+</html>
