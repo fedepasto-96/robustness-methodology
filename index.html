@@ -115,6 +115,8 @@ canvas{max-width:100%;background:transparent;border-radius:8px}
 <div class="wrap">
 <nav>
   <div style="font:700 14px/1.3 var(--sans);color:var(--ink)">TPI Robustness<br/><span class="muted tiny">Interactive Methodology</span></div>
+  <h4>Plain language</h4>
+  <a href="#part0" class="part">0 · The system in plain language</a>
   <h4>Mathematics</h4>
   <a href="#mathematics" class="part">M · The math, in full &#9654;</a>
   <a href="#lab-sharpe-sec">Sharpe</a>
@@ -135,19 +137,34 @@ canvas{max-width:100%;background:transparent;border-radius:8px}
   <a href="#stability">4 · Stability = the FRAGILE floor</a>
   <a href="#wfe">5 · Conditional walk-forward</a>
   <a href="#cov">6 · Parameter CoV</a>
+  <a href="#time">6b · Time-consistency (TIME)</a>
   <a href="#annual">7 · Annualization basis</a>
+  <a href="#costs">7b · Transaction costs</a>
   <h4>The optimizer</h4>
   <a href="#pipeline" class="part">8 · Pipeline &#9654;</a>
   <a href="#search">9 · Two-regime search</a>
   <a href="#objective">10 · Objective &amp; what we rejected</a>
   <a href="#descend">11 · Size-descending fallback</a>
+  <a href="#pipeline-updates">11b · Pipeline updates (07-14/15)</a>
   <a href="#ceiling">12 · The asset ceiling</a>
+  <a href="#mute">12b · Vote-mute policy</a>
+  <a href="#derived-votes">12c · Derived votes (PAXG hub)</a>
   <h4>Record</h4>
   <a href="#decisions">13 · Affirmed decisions</a>
+  <h4>Evidence</h4>
+  <a href="#evidence">14 · Clean evidence: lockbox &amp; ledger</a>
+  <h4>Structure</h4>
+  <a href="#structure">15 · Time-coherence gates &amp; hysteresis</a>
+  <a href="#voting">12d · When does a pair vote?</a>
+  <a href="#search-settled">16 · What the search can and cannot do</a>
+  <a href="#portfolio-robustness">17 · Robustness at the portfolio level</a>
+  <h4>July 2026 campaign</h4>
+  <a href="#changelog">LOG · Campaign changelog</a>
+  <a href="#open-questions">OQ · Open questions</a>
 </nav>
 <main>
 
-<h1>Robustness &amp; Stability of Auto-Generated TPIs<br/><span class="sub tiny muted">how the principles are defined, and how the optimizer is built to seek them — a living, interactive spec</span></h1>
+<h1>Robustness &amp; Stability of Auto-Generated TPIs<br/><span class="sub tiny muted">how the principles are defined, and how the optimizer is built to seek them — a living, interactive spec · last updated 2026-07-15</span></h1>
 <p class="lede">Every knob below is wired to the <em>actual</em> production logic. Drag them and the verdict recomputes exactly the way <code>fep_robustness.fep_verdict()</code> does in the codebase. Nothing here is a mock-up of the math — it <em>is</em> the math.</p>
 
 <div class="card" id="tldr">
@@ -160,10 +177,119 @@ canvas{max-width:100%;background:transparent;border-radius:8px}
   <span class="pill robust">ROBUST</span> (edge that persists <em>and</em> is stable),
   <span class="pill border">BORDERLINE</span> (stable, but the edge is incomplete: decaying, recent-only, or unverifiable),
   <span class="pill fragile">FRAGILE</span> (fails any stability gate, or has no edge anywhere). The optimizer's job is to
-  <em>strive</em> for a ROBUST 5-indicator TPI, fall back to STABLE, and only then reduce complexity — never to ship a FRAGILE one.</p>
+  <em>strive</em> for a ROBUST 5-indicator TPI, fall back to STABLE, then reduce complexity — and only as a
+  last resort (no ROBUST/BORDERLINE found at any size) deploy a FRAGILE that is still <em>stable</em>, has a
+  real edge, and fails at most one other gate. An <em>unstable</em> FRAGILE, or one failing ≥2 gates, or one
+  with no edge, is never deployed (deployability policy, 2026-07; <code>ship_ok</code>).</p>
   <p class="muted tiny">This document is the source of truth for the theory. The live verdict is computed by
   <code>fep_robustness.fep_verdict()</code>; the optimizer by <code>tpi_autogen</code>. Both are reconciled to what you read here.</p>
 </div>
+
+<!-- ============================ 0 — THE SYSTEM IN PLAIN LANGUAGE ============================ -->
+<h2 class="section" id="part0"><span class="n">0</span>Part 0 — The system in plain language</h2>
+<p class="lede">Before the mathematics: what this machine is, why its headline numbers kept <em>falling</em> during July 2026,
+and why that was the goal. Everything below is restated precisely in the sections that follow; this part exists so the
+whole document can be understood without reading a single formula.</p>
+
+<p>The system trades two sleeves — a crypto rotation and a stock rotation. For every pair of assets, a small committee of
+trend indicators (a Trend Probability Indicator, TPI) votes on which asset is currently stronger; a tournament adds the
+votes up and the portfolio holds the winners, or steps aside into cash or gold when the market-wide switches (the macro
+gates) read risk-off. Two different kinds of claims live in that machine, and the July 2026 campaign was about refusing
+to let one borrow credibility from the other: the claim that a <em>single committee</em> is trustworthy, and the claim
+that the <em>whole rotation</em> makes money.</p>
+
+<h3 id="part0-ratchet">The honesty ratchet — every change removed a way the backtest could flatter itself</h3>
+<p>Starting from the July 2026 cost audit, each fix in the campaign took away one specific flattery. The reported numbers
+dropped every time, because each drop was a lie being subtracted, not performance being lost:</p>
+<table>
+<thead><tr><th>Flattery removed</th><th>Plain meaning</th><th>The fix</th></tr></thead>
+<tbody>
+<tr><td><b>Free trading</b></td><td>every equity curve was computed as if trades cost nothing, so a strategy that flips
+constantly looked as good as a calm one</td><td>a venue-aware fee model, and later net-of-cost scoring
+(<code>NET_VERDICTS_ENABLED</code>) so the <em>search itself</em> pays the fee bill on every candidate it tries</td></tr>
+<tr><td><b>Imaginary short profits</b></td><td>committees were scored as if they could profit from falling ratios, but the
+deployed system only ever holds or steps aside (long/flat)</td><td>long-only scoring (<code>LONG_ONLY_SCORING</code>):
+the certified strategy is the deployed strategy</td></tr>
+<tr><td><b>Grading on the training data</b></td><td>every "out-of-sample" number overlapped data the optimizer had touched,
+and nobody counted how many candidates were tried before the winner was picked</td><td>the lockbox holdout (the final
+6 months of history are invisible to the whole pipeline) plus the trial ledger (an exact count of every configuration the
+search drew, priced against a best-of-N-noise null) — &sect;14</td></tr>
+<tr><td><b>Coin-flip re-tuning folds</b></td><td>the walk-forward test (re-optimize on one span of history, verify on the
+next — walk-forward efficiency, WFE) was scoring folds that held one or even zero trades, i.e. grading a coin flip</td>
+<td>the fold-validity guard: folds with fewer than 3 test trades stop counting, slow committees run 2 long ~12-month folds
+instead of 4 thin ones, and three latent not-a-number (NaN) bugs found in the same audit were fixed</td></tr>
+<tr><td><b>One lucky era</b></td><td>a committee could earn its whole backtest in a single stretch of history and still be
+labelled dependable</td><td>the time-consistency gate (TIME): history is cut into 4 slices and the scorecard must look
+similar in each — spread across slices (worst-metric coefficient of variation, CoV) &le; 1.10 and no dead slice
+(worst-slice core &ge; 0.05)</td></tr>
+</tbody>
+</table>
+<div class="note warn"><b>What the ratchet did to the labels.</b> The book that once read 4 ROBUST / 47 BORDERLINE / 4 FRAGILE
+reads <b>0 ROBUST</b> under the honest criteria: a no-regeneration preview kept only 1 of the 4 ROBUST stamps
+(<code>aea2278</code>), the first fully net regeneration produced 0 ROBUST / 51 BORDERLINE / 4 FRAGILE with only 12 of 47
+lockbox-eligible committees passing on unseen data (<code>REGEN_NET_2026-07-11</code>), and the current v5 book stands at
+22 BORDERLINE / 33 FRAGILE with 16 pairs <em>honestly refused</em> — the generator declined to ship anything on crosses
+where no time-consistent committee exists (<code>8733723</code>). The labels fell because the truth rose.</div>
+
+<h3 id="part0-twoaxis">Two questions, asked separately: does it make money, and is it dependable</h3>
+<div class="grid2">
+  <div class="card" style="margin:8px 0">
+    <b>EDGE — <span class="muted">does it make money?</span></b>
+    <p class="tiny">Four absolute floors on the risk-adjusted scorecard — Sharpe &ge; 0.7, Sortino &ge; 1.0, Profit Factor
+    &ge; 1.5, Omega &ge; 1.15 — and clearing at least 3 of the 4 counts as a real edge. The same bar is applied three ways:
+    on the <b>full</b> history, on the <b>recent</b> held-out window (out-of-sample, OOS), and on the <b>worst row of the
+    parameter sweep</b> (nudge every knob &plusmn;3 and re-score — the edge must survive its worst neighbour).</p>
+  </div>
+  <div class="card" style="margin:8px 0">
+    <b>STABILITY — <span class="muted">is it dependable?</span></b>
+    <p class="tiny">Six hard gates, each a separate axis, and failing <em>any one</em> is fatal (never averaged):
+    survives re-tuning (walk-forward efficiency, WFE, &ge; 0.50, only enforceable with &ge; 30 out-of-sample trades);
+    a calm parameter neighbourhood (worst-metric coefficient of variation, CoV, &le; 0.20); makes its money in every
+    stretch of history, not one lucky era (time-consistency: worst-metric CoV across 4 history slices &le; 1.10, no dead
+    slice); survives path shuffles (Monte-Carlo, MC, survival &ge; 0.50); the committee actually agrees (sign coherence
+    &ge; 0.45); and a sane trade rhythm (turnover coherence &ge; 0.40) — plus validity checks on trade count and, for
+    baskets, cross-asset breadth.</p>
+  </div>
+</div>
+<p>The two axes compose one way only: a real edge that is also dependable earns <span class="pill robust">ROBUST</span>;
+dependable but with incomplete evidence earns <span class="pill border">BORDERLINE</span>; failing any dependability gate,
+or having no edge at all, is <span class="pill fragile">FRAGILE</span>. Since July the same gates also act
+<em>upstream</em>: a candidate that whipsaws or scatters is rejected during generation, not politely labelled and shipped
+(&sect;15).</p>
+
+<h3 id="part0-portfolio">A verdict certifies one component; the portfolio is what holds the money</h3>
+<p>Every verdict above certifies a <em>single pair committee as if it were a standalone strategy</em>. That is deliberately
+the hardest exam in the building, and most committees fail it — mostly for lack of evidence, not proven badness. The thing
+that actually holds money is the <b>rotation</b>, which aggregates ~36 crypto votes (or ~15 stock votes) and is far more
+forgiving of any single noisy voter. Through every honesty fix, the rotation kept beating doing nothing:</p>
+<div class="note"><b>Measured 2026-07-15, net of fees, on the held-out window (out-of-sample, OOS, split 01-01-2024;
+<code>rotation_oos.print_summary</code> with <code>FEES_ENABLED=True</code>):</b> the crypto rotation earned a Sharpe of
+<b>1.37</b> versus <b>0.56</b> for simply holding Bitcoin, with a shallower worst drawdown (&minus;35% vs &minus;53%);
+the stock rotation earned <b>2.02</b> versus <b>1.19</b> for the buy-and-hold benchmark. Component labels collapsed to
+zero ROBUST while the portfolio's net edge over buy-and-hold persisted — that pair of facts together is the honest state
+of the system.</div>
+
+<h3 id="part0-evidence">Why you should believe any of this — the evidence anchors</h3>
+<ul class="derive">
+  <li><b>Calibration against independent human judgement.</b> The operator reviewed every pane by eye and rated 52 of them
+  (20 GOOD, 6 BAD, 26 in between) with no knowledge of the gate thresholds. The new time-consistency gate was tuned only
+  afterwards, on a 12-pane calibration set — all 6 rated-BAD panes plus 6 of the rated-GOOD — and separates that set
+  perfectly: all 6 GOOD pass, all 6 BAD fail, including two pairs whose stored statistics were so similar no existing
+  metric could tell them apart (the SOLDOGE twins; <code>fep_robustness.py</code> calibration note, <code>3bcacaa</code>).
+  Across the whole book the gate is deliberately <em>stricter</em> than the eyeball review — four panes the operator liked
+  also fail it (&sect;6b) — but the direction that matters is one-way: no pane the operator rated BAD passes anywhere.</li>
+  <li><b>Mechanical bugs proven by replay, not by argument.</b> The July audits re-ran the actual code paths: 84% of
+  walk-forward folds held two trades or fewer and six zero-trade folds scored a perfect 3.0; a not-a-number (NaN) in the
+  fold trade counts silently disabled trade weighting on 24 of 55 pairs; and a replay of the ETHBTC search showed the hard
+  cadence gate zeroing ~99% of beam evaluations, making the live committee unreachable by construction
+  (<code>384827b</code>). Each was fixed and the fix verified by re-running the same replay.</li>
+  <li><b>Ideas tested and discarded, on the record.</b> Bigger committees (7 seats instead of 5): refused pairs stayed
+  refused and both healthy controls got <em>worse</em> (SOLETH's time-consistency CoV rose from 0.56 to 0.79) — the cap
+  stays at 5. Muting votes by trendiness of the ratio (a Hurst-exponent triage): craters the crypto rotation's
+  out-of-sample Sharpe from 1.38 to 0.83 — refuted. Forgiving the single worst history slice in the time gate: it would
+  have passed every operator-rated-BAD pane — rejected, because the dead slice <em>is</em> the signal
+  (<code>2efc492</code>, <code>_mute.log</code>, <code>fep_robustness.py</code>).</li>
+</ul>
 
 <h2 class="section" id="mathematics"><span class="n">M</span>The mathematics, in full</h2>
 <p class="lede">Nothing below is hand-wavy: each quantity is shown as the exact formula the code computes, then made draggable so you can watch the math move. Aimed at any engineer — rigorous, not deep.</p>
@@ -906,7 +1032,7 @@ canvas{max-width:100%;background:transparent;border-radius:8px}
   <div class="formula">$$ \text{mc\_pos\_frac} = \frac{1}{N}\sum_{j=1}^{N}\mathbf{1}\!\left[\,E_j(T) > E_j(0)\,\right],\qquad E_j(k)=\prod_{t=1}^{k}\bigl(1+r^{(j)}_t\bigr) $$</div>
   <div class="formula">$$ r^{(j)}\ \text{= a bootstrap resample of the realized per-trade returns } \{r_1,\dots,r_T\} $$</div>
   <div class="formula">$$ \text{FRAGILE gate:}\quad \text{mc\_pos\_frac} < 0.50 \;\Rightarrow\; \text{fail}_{MC}=\text{True} $$</div>
-<p>The live gate reads <code>mc_pos &lt; 0.50 &rarr; FRAGILE</code> (fep_robustness.py:132). The pedagogical question it answers: <em>is the equity curve an edge, or one lucky ordering of the same trades?</em> If you keep the exact multiset of per-trade returns but reshuffle/resample the sequence, a genuine edge compounds positive almost regardless of order; a fluke needs its specific lucky path.</p><p>Here we draw \(N\) bootstrap resamples \(r^{(j)}\) of the realized trade returns, compound each into an equity curve \(E_j(k)=\prod_{t\le k}(1+r^{(j)}_t)\), and count the fraction whose <b>final</b> equity clears the \(E_j(0)=1\) start line. That fraction is <code>mc_pos_frac</code> — reported here exactly as \(\frac1N\sum_j \mathbf 1[E_j(T)>1]\). (The production <code>mc_pos_frac</code> in tpi_autogen.py:879 is the sibling <em>significance</em> form — the percentile of the real score inside an OHLC-permutation null — but both share the identical &ge;0.50 survival floor and the same intuition: beat &ge;half the reshuffles.)</p><p>Because bootstrapping preserves the return <em>distribution</em> and only scrambles <em>order</em>, mean drift dominates the survival count. Turn up the mean and the cloud lifts off the start line and <code>mc_pos_frac</code>&rarr;1; flatten the mean toward zero and it collapses toward the coin-flip 0.50 gate — the exact boundary at which the code stops trusting the path.</p>
+<p>The live gate reads <code>mc_pos &lt; 0.50 &rarr; FRAGILE</code> (fep_robustness.py:132). A companion <b>fail-closed</b> guard (tier-0, 2026-07): when the MC null has too few <em>effective</em> simulations to be trustworthy (<code>mc_unreliable</code>), the TPI is stamped FRAGILE rather than passing on an unreliable null — an untrustworthy test counts as a failed one, never a free pass. The pedagogical question it answers: <em>is the equity curve an edge, or one lucky ordering of the same trades?</em> If you keep the exact multiset of per-trade returns but reshuffle/resample the sequence, a genuine edge compounds positive almost regardless of order; a fluke needs its specific lucky path.</p><p>Here we draw \(N\) bootstrap resamples \(r^{(j)}\) of the realized trade returns, compound each into an equity curve \(E_j(k)=\prod_{t\le k}(1+r^{(j)}_t)\), and count the fraction whose <b>final</b> equity clears the \(E_j(0)=1\) start line. That fraction is <code>mc_pos_frac</code> — reported here exactly as \(\frac1N\sum_j \mathbf 1[E_j(T)>1]\). (The production <code>mc_pos_frac</code> in tpi_autogen.py:879 is the sibling <em>significance</em> form — the percentile of the real score inside an OHLC-permutation null — but both share the identical &ge;0.50 survival floor and the same intuition: beat &ge;half the reshuffles.)</p><p>Because bootstrapping preserves the return <em>distribution</em> and only scrambles <em>order</em>, mean drift dominates the survival count. Turn up the mean and the cloud lifts off the start line and <code>mc_pos_frac</code>&rarr;1; flatten the mean toward zero and it collapses toward the coin-flip 0.50 gate — the exact boundary at which the code stops trusting the path.</p>
 <div class="lab" id="mathlab-mc">
   <div class="lab-h"><span class="tag">MATH</span><b>Monte-Carlo Survival: does the edge outlive its own shuffle?</b></div>
   <div class="lab-body">
@@ -1290,10 +1416,11 @@ excess-over-buy&amp;hold (fooled by ratios that merely beat a terrible passive b
 
 <!-- ============================ 3 — CENTREPIECE ============================ -->
 <h2 class="section" id="verdict"><span class="n">3</span>The verdict ladder — a live <code>fep_verdict()</code></h2>
-<p>This is the whole model in one widget. The edge conditions (full / recent / sweep / fold) decide <em>whether the edge is real
-and complete</em>; the stability gates decide <em>whether it can be trusted</em>. Stability is checked <b>first</b> and any single failed
-gate forces FRAGILE — that is the <span class="pill robust">robust &rArr; stable</span> enforcement, and it is why a blend can never let one
-healthy factor mask a collapsed one. Drive it:</p>
+<p>This is the whole model in one place. The edge conditions (full-period / recent / parameter-sweep / time-fold) decide
+<em>whether the edge is real and complete</em>; the stability gates decide <em>whether it can be trusted</em>. Stability is
+checked <b>first</b>, and any single failed gate forces FRAGILE — that is the
+<span class="pill robust">robust &rArr; stable</span> enforcement, and it is why a blend can never let one healthy factor mask
+a collapsed one. Drive it:</p>
 <div class="lab" id="lab-verdict">
   <div class="lab-h"><span class="tag">LIVE</span><b>fep_verdict — faithful in-browser port</b>
      <span style="margin-left:auto"><button id="v-reset" class="seg"><span style="padding:2px 6px">&#8635; reset</span></button></span></div>
@@ -1322,38 +1449,217 @@ healthy factor mask a collapsed one. Drive it:</p>
     </div>
   </div>
 </div>
+<div class="note warn tiny">The in-browser port above models the core gates and caps. Three 2026-07-14 additions — the
+time-consistency axis, the low-N evidence rescue, and the "not measurable (n/a)" caps — are documented in the ladder and
+tables below and are not yet draggable in the widget.</div>
 <p>The ladder the trace walks (exactly the code — first match wins, top to bottom):</p>
 <div class="ladder" id="v-ladder"></div>
 
-<!-- ============================ 4 ============================ -->
-<h2 class="section" id="stability"><span class="n">4</span>Stability is the FRAGILE floor — a conjunction of hard gates</h2>
-<p>Stability is <b>not</b> a score you average. It is a set of per-axis floors, and failing <em>any one</em> is fatal. We deliberately do
-<em>not</em> gate on a blended "predictability" number, because a blend lets a healthy factor hide a collapsed one — the lesson from a TPI
-whose blend looked fine only because a 0.95 Monte-Carlo and a 6% CoV masked a 0.05 walk-forward. Each gate stands alone:</p>
+<h3>The full current ladder, spelled out</h3>
+<p>Every check below reads a constant from <code>fep_robustness.py</code>; "green" means a metric set clears at least
+<code>EDGE_GREEN_MIN = 3</code> of the 4 edge floors (Sortino &ge; 1.0, Profit Factor &ge; 1.5, Omega &ge; 1.15, Sharpe &ge; 0.7).
+The "worst time fold" check only judges folds thick enough to judge — a fold needs at least
+<code>MIN_FOLD_TRADES = 25</code> test trades to enter the worst-fold vote; with three or more judgeable folds the single worst
+is dropped (one tough regime is tolerated, mirroring the parameter sweep's 20th-percentile read); with none, the check is
+non-blocking.</p>
 <table>
-<thead><tr><th>Gate</th><th>Axis</th><th class="c">Floor</th><th>Fires FRAGILE when&hellip;</th></tr></thead>
+<thead><tr><th class="c">#</th><th>Question (first match wins)</th><th>Outcome</th></tr></thead>
 <tbody>
-<tr><td>Walk-forward efficiency (WFE)</td><td>temporal</td><td class="c">&ge; 0.50</td><td>mean OOS/IS ratio &lt; 0.50 <b>and</b> &ge; 30 OOS trades (conditional — &sect;5)</td></tr>
-<tr><td>Worst-metric CoV</td><td>parameter</td><td class="c">&le; 0.20</td><td>the noisiest metric scatters &gt; 20% across the &plusmn;3 sweep</td></tr>
-<tr><td>Monte-Carlo survival</td><td>path</td><td class="c">&ge; 0.50</td><td>fewer than half the shuffled paths stay positive</td></tr>
-<tr><td>Turnover coherence</td><td>behavioural</td><td class="c">&ge; 0.40</td><td>trade rhythm is erratic / degenerate</td></tr>
-<tr><td>Sign coherence</td><td>signal</td><td class="c">&ge; 0.45</td><td>the committee doesn't actually agree</td></tr>
-<tr><td>Cross-asset</td><td>breadth</td><td class="c">&ge; 0.40</td><td>one basket leg is carrying the rest (multi-asset only)</td></tr>
-<tr><td>Min-trades</td><td>validity</td><td class="c">window-scaled</td><td>too few trades to judge anything</td></tr>
+<tr><td class="c">0</td><td>Did any hard stability gate trip? (the &sect;4 conjunction — plus starvation, unless the low-N rescue below applies)</td><td><span class="pill fragile">FRAGILE</span> — the reason names every tripped gate</td></tr>
+<tr><td class="c">1</td><td>No edge on the full period <em>and</em> no edge out-of-sample (OOS — the held-out recent window)?</td><td><span class="pill fragile">FRAGILE</span> — no edge anywhere</td></tr>
+<tr><td class="c">2</td><td>Edge on full <em>and</em> OOS <em>and</em> the worst parameter-sweep row <em>and</em> the worst judgeable time fold, with every stability axis passing?</td><td><span class="pill robust">ROBUST</span></td></tr>
+<tr><td class="c">3</td><td>Full-period edge but not OOS?</td><td><span class="pill border">BORDERLINE</span> — edge decaying</td></tr>
+<tr><td class="c">4</td><td>OOS edge but not full-period?</td><td><span class="pill border">BORDERLINE</span> — recent-only, not all-regime</td></tr>
+<tr><td class="c">5</td><td>Edge does not persist across the &plusmn;3 parameter sweep?</td><td><span class="pill border">BORDERLINE</span></td></tr>
+<tr><td class="c">6</td><td>Edge collapses in an interior time fold?</td><td><span class="pill border">BORDERLINE</span></td></tr>
 </tbody>
 </table>
-<div class="note">Signal <em>confidence</em> (directional accuracy / IC) is <b>not</b> a gate — near-coin-flip hit rates are normal and healthy for a
-trend system (the edge is in the tails, not the hit rate). It stays a read-only diagnostic.</div>
+<p>Four <b>one-directional caps</b> then run on a would-be ROBUST (they can only demote to BORDERLINE, never lift or force FRAGILE):</p>
+<ul class="derive">
+  <li><b>Recency cap</b> — the edge on the most recent walk-forward folds fell below <code>RECENT_GEN_MIN = 0.50</code>: a structurally sound committee that is not working <em>right now</em> is not ROBUST.</li>
+  <li><b>Walk-forward-uncertified cap</b> — fewer than <code>WFE_MIN_TRADES = 30</code> total out-of-sample trades: temporal stability could not be <em>certified</em> (walk-forward efficiency (WFE) — re-tuning survival — is advisory at that trade count), so ROBUST caps at BORDERLINE (<code>wf_uncertified</code>).</li>
+  <li><b>Walk-forward "not measurable" cap</b> — the walk-forward efficiency could not be measured at all (fold-validity guard, young asset under <code>WF_YOUNG_MIN_YEARS = 2.5</code> years, or no folds): same BORDERLINE ceiling. <b>Monotonicity invariant:</b> "not measurable" must never out-rank a measured number.</li>
+  <li><b>Time-consistency "not measurable" cap</b> — the history-slice check could not be measured (young, or fewer than <code>TIME_MIN_VALID_WINDOWS = 4</code> valid slices): same BORDERLINE ceiling, same invariant.</li>
+</ul>
+
+<h3>The low-N evidence rescue (rule R1, 2026-07-14) — starvation is physics, not guilt</h3>
+<p>At our long-only cadence (~7 direction changes a year) a pair simply cannot generate many trades — roughly 5
+out-of-sample trades is normal. Treating "too few trades" as an automatic FRAGILE would punish tempo, not quality. So a
+<b>starved</b> pair (below the window-scaled minimum trade count) is rescued to
+<span class="pill border">BORDERLINE</span>, badged <b>"low N"</b> (small sample), when — and only when — <em>every</em>
+other measurable axis is strong. The rescue is evaluated only after every non-starvation hard gate (Monte-Carlo shuffle,
+parameter-CoV, time-consistency, coherence, turnover, cross-asset) has passed, and then requires <b>all four</b> of:</p>
+<ul class="derive">
+  <li>the <b>worst row of the parameter sweep</b> still clears &ge; 3 of 4 edge floors (sweep-worst edge &ge; 3/4);</li>
+  <li>the <b>out-of-sample window</b> clears &ge; 3 of 4 edge floors — the load-bearing safeguard (it independently blocks the SOLDOGE / SUIDOGE / SUIXRP 0-of-4 cases regardless of Monte-Carlo noise at 20 simulations);</li>
+  <li><b>Monte-Carlo path survival &ge; <code>LOW_N_MC_MIN = 0.85</code></b> — stricter inside the rescue than the ordinary 0.50 gate;</li>
+  <li><b>parameter-dispersion stable and time-consistency stable</b> (the time condition is structurally guaranteed at this point — a tripped time gate would have landed in step 0 — but it is stated in the code on purpose: a starved pair that is measurable and era-scattered must never be rescued).</li>
+</ul>
+<p>The outcome is BORDERLINE, <b>never ROBUST</b> — the evidence is thin, not bad. Failing the rescue appends "too few
+trades" and the verdict is FRAGILE as before. Simulated against the operator's 55-pane quality review (2026-07-14):
+12 rescues, 0 operator-rated-BAD pairs upgraded.</p>
+
+<!-- ============================ 4 ============================ -->
+<h2 class="section" id="stability"><span class="n">4</span>Stability is the FRAGILE floor — a conjunction of hard gates</h2>
+<p>Stability is <b>not</b> a score you average. It is a set of per-axis floors, and failing <em>any one</em> is fatal. We
+deliberately do <em>not</em> gate on a blended "predictability" number, because a blend lets a healthy factor hide a
+collapsed one — the lesson from a TPI whose blend looked fine only because a 0.95 Monte-Carlo and a 6% parameter spread
+masked a 0.05 walk-forward. Six axes, each its own hard gate (constants from <code>fep_robustness.py</code>; an absent
+axis — None — is non-blocking, but "absent" is handled by the &sect;3 caps so it can never beat "measured"):</p>
+<table>
+<thead><tr><th>Gate</th><th>Plain question</th><th class="c">Floor</th><th>Fires FRAGILE when&hellip;</th></tr></thead>
+<tbody>
+<tr><td>Re-tuning survival (walk-forward efficiency, WFE)</td><td>does the edge survive honest re-optimization?</td><td class="c">&ge; <code>0.50</code></td><td>the trade-weighted mean out-of-sample/in-sample ratio is &lt; <code>WFE_STABLE_FLOOR = 0.50</code> <b>and</b> the folds hold &ge; <code>WFE_MIN_TRADES = 30</code> out-of-sample trades (conditional — &sect;5)</td></tr>
+<tr><td>Parameter dispersion (worst-metric coefficient of variation, CoV)</td><td>is the tuned point a plateau or a spike?</td><td class="c">&le; <code>0.20</code></td><td>the noisiest single metric scatters more than <code>ADVISORY_COV_CAP = 0.20</code> (name historical — it is a hard gate) across the &plusmn;3 sweep; the Auto-TPI slider (<code>cov_cap</code>) can tighten it per run</td></tr>
+<tr><td>Time-consistency (the TIME gate)</td><td>does it make its money in every stretch of history, or one lucky era?</td><td class="c">&le; <code>1.10</code> and &ge; <code>0.05</code></td><td>the worst-metric spread across the <code>TIME_K_WINDOWS = 4</code> history slices exceeds <code>TIME_COV_CAP = 1.10</code>, <b>or</b> the worst slice's core performance falls below <code>TIME_CORE_FLOOR = 0.05</code> — one dead slice is a hard fail (the drop-worst-slice mulligan was tested and rejected: the dead slice IS the signal)</td></tr>
+<tr><td>Monte-Carlo (MC) path survival</td><td>does the timing beat shuffled versions of the same history?</td><td class="c">&ge; <code>0.50</code></td><td>the real score beats fewer than half of the drift-matched permutations</td></tr>
+<tr><td>Sign coherence</td><td>does the committee actually agree with itself?</td><td class="c">&ge; <code>0.45</code></td><td>pairwise sign-agreement (worst pair weighted heavily) drops below 0.45</td></tr>
+<tr><td>Behaviour (turnover coherence)</td><td>do the members trade at one tempo, or does one whipsaw?</td><td class="c">&ge; <code>0.40</code></td><td>the trade rhythm across members is erratic / one member flips far faster than the rest</td></tr>
+</tbody>
+</table>
+<p>Two further validity checks ride along: <b>cross-asset</b> (&ge; 0.40, multi-asset baskets only — fires when one basket
+leg is carrying the rest) and <b>minimum trades</b> (window-scaled), whose failure is now routed through the &sect;3 low-N
+rescue instead of being an automatic FRAGILE.</p>
+<div class="note tiny">Two gates <b>fail closed</b> rather than open. The Monte-Carlo gate: if too many permutations crash
+and the <em>effective</em> simulation count drops below the floor, the percentile can't be trusted, so
+<code>mc_unreliable</code> trips FRAGILE rather than passing on a thin null (the old code scored a crashed shuffle as 0.0,
+making the null <em>easier</em> to beat). The time gate: a slice spread that is unmeasurable because the cross-slice mean is
+near zero returns infinity — a hard fail, not a skipped axis.</div>
+<div class="note">Signal <em>confidence</em> (directional accuracy / information coefficient) is <b>not</b> a gate —
+near-coin-flip hit rates are normal and healthy for a trend system (the edge is in the tails, not the hit rate). It stays a
+read-only diagnostic.</div>
+
+<h3>Selection enforces the same floors — rejects, not labels</h3>
+<p>Since 2026-07 the two dispersion axes are also <b>hard rejects at final candidate selection</b>
+(<code>tpi_autogen.py</code>), not merely labels: with <code>config.CADENCE_GATES_ENABLED = True</code> a candidate over the
+parameter-dispersion cap is discarded outright (the MUDELTA 112% lesson), and with <code>config.TIME_GATE_ENABLED = True</code>
+a one-lucky-era candidate is discarded the same way. Unmeasurable (young / n-a) candidates are <em>not</em> rejected there —
+the &sect;3 caps handle them, preserving the monotonicity invariant. If <em>every</em> top candidate fails, the generation
+<b>refuses honestly</b> (descends in committee size, and ultimately declines to ship) instead of shipping the least-bad
+offender; refused pairs are listed in <code>incoherent_pairs.json</code>. Candidate ordering then prefers a better verdict
+first, a stable candidate second (the same three-axis conjunction — walk-forward / parameter / time — with the same
+conditional-walk-forward rule and the same effective caps as the live verdict, single-sourced so selection and verdict can
+never drift), and only then raw performance rank.</p>
+
+<h3>Regen Readiness / deploy semantics — <code>ship_ok</code></h3>
+<p>The verdict is a label; <code>ship_ok</code> (in <code>tpi_autogen.py</code>) is the deploy decision. In preference order:</p>
+<ul class="derive">
+  <li><span class="pill robust">ROBUST</span> / <span class="pill border">BORDERLINE</span> &rarr; <b>deploy</b> (a recent-fold generalization below <code>RECENT_GEN_MIN = 0.50</code> is noted, not blocking).</li>
+  <li><span class="pill fragile">FRAGILE</span> &rarr; deployable <b>only</b> as the best-available fallback, and only when <b>all three</b> hold:
+    (1)&nbsp;<b>stable on all three stability axes</b> — walk-forward (<code>wf_stable</code>), parameter (<code>cov_stable</code>) <em>and</em> time (<code>time_stable</code>; joined the conjunction 2026-07-14, defaulting to pass for pre-TIME reports so old artifacts keep their semantics) — a one-lucky-era TPI can never deploy through this path;
+    (2)&nbsp;<b>a real edge</b> — at least <code>EDGE_GREEN_MIN = 3</code> of 4 floors green on the full period <em>or</em> out-of-sample;
+    (3)&nbsp;<b>at most one other failing hard gate</b> (Monte-Carlo / coherence / turnover / cross-asset / too-few-trades) — two or more is a hold.</li>
+  <li>Anything else — unstable, edgeless, or multiply-failing — is <b>held</b>. A report so old it predates the per-gate failure list fails <b>closed</b> ("deployability unverifiable; regenerate") rather than assuming zero failing gates.</li>
+</ul>
+<p>A merely <em>Weak</em> absolute-performance stamp never holds a TPI back (its value can show at the portfolio level); it
+is surfaced as an advisory in the reason.</p>
+<div class="note tiny"><b>What happens to a refused pair’s vote:</b> the policy is per sleeve and was measured both
+ways before either default was set — crypto mutes refused votes (<code>MUTE_REFUSED_VOTES = True</code>: measured free,
+slightly protective on the redundant 36-vote matrix), stocks keeps its refused incumbents voting
+(<code>MUTE_REFUSED_VOTES_STOCKS = False</code>: muting a sparse winner-takes-all tournament measured harmful). Numbers,
+mechanism and the rejected alternatives in &sect;12b.</div>
 
 <!-- ============================ 5 ============================ -->
-<h2 class="section" id="wfe"><span class="n">5</span>Conditional walk-forward — the trade-starvation problem</h2>
-<p>WFE is the load-bearing temporal gate: re-optimize on each fold, test on its held-out tail, and take the <b>trade-weighted</b> mean of
-the OOS/IS performance ratios. &ge; 0.50 means the edge keeps at least half its strength under honest re-optimization (Pardo 2008).</p>
-<p>But there's a catch our book forces on us: <b>trade starvation</b>. These trend signals on short ratio histories trade ~17 times
-<em>total</em> across all folds. At that count a per-fold Sharpe/Sortino is small-sample noise — WFE false-passes and false-fails at random.
-So WFE is <b>conditional</b>: it can only <em>hard-fail</em> a TPI when the folds together hold &ge; <code>WFE_MIN_TRADES = 30</code> OOS trades.
-Below that it becomes advisory — it cannot fail the TPI, but it also cannot <em>certify</em> temporal stability, so a would-be-ROBUST TPI is
-capped at BORDERLINE (<code>wf_uncertified</code>). The distinction is deliberate: <b>measured-unstable &rArr; FRAGILE; unmeasurable &rArr; BORDERLINE.</b></p>
+<h2 class="section" id="wfe"><span class="n">5</span>Walk-forward efficiency — does the edge survive honest re-tuning, and can we even measure that?</h2>
+
+<p>Walk-forward efficiency (WFE) answers one everyday question: <b>if we periodically re-tune the committee on everything
+seen so far and then trade it forward on data it has never seen, does the edge survive the re-tuning?</b> (Pardo 2008's
+walk-forward efficiency: the mean ratio of out-of-sample to in-sample performance across re-optimization folds.)
+A reading at or above <code>WFE_STABLE_FLOOR = 0.50</code> means the strategy keeps at least half of its tuned strength
+when it is honestly re-fit and traded forward — the temporal-stability bar that ROBUST requires. The interactive fold
+widget in the mathematics part (<a href="#lab-wfe-sec">Walk-forward (WFE) lab</a>) lets you drag the fold count, edge
+decay and trade counts and watch this number move.</p>
+
+<h3>Anchored, expanding folds — always judged on the held-out tail</h3>
+<p>The folds are <b>anchored and expanding</b> (<code>_fold_windows</code> in <code>tpi_autogen.py</code>): every fold trains on
+everything from the start of history up to the fold, then tests on the fold window itself, so later folds always know more —
+exactly like the real workflow of periodically re-tuning a live committee. Three honesty details are built in.
+First, the test folds are anchored to begin at the in-sample end (the walk-forward call passes
+<code>initial_frac = is_frac</code>), so the generalization verdict is judged strictly on the tail that the combo-selection
+search never saw. Second, a 5-bar <b>embargo</b> is cut from the end of each training window so an indicator's trailing
+lookback cannot straddle the train/test seam. Third, nothing vanishes silently: folds removed because the tail was too
+short (each test window needs at least ~30 bars; the fold count shrinks until that holds) are counted and reported
+(<code>n_folds_requested</code> / <code>n_folds_skipped_short</code> / <code>n_folds_failed</code>), so the report can honestly say
+"3 of 4 folds".</p>
+
+<h3>The per-fold ratio, and the trade-weighted mean</h3>
+<p>Each fold's generalization ratio compares the core performance measured on the held-out test window against the same
+measure on its training window, with two safety rails taken straight from the code: the ratio is <b>capped at 3.0</b> so one
+lucky fold cannot dominate the mean, and a fold whose training core is negligible (below 0.10) scores 0 rather than
+exploding toward infinity:</p>
+<div class="formula">$$ r_k \;=\; \begin{cases} \min\!\left(\dfrac{\text{test core}_k}{\text{train core}_k},\; 3.0\right) & \text{train core}_k > 0.10 \\[6pt] 0 & \text{otherwise} \end{cases} \qquad\quad \text{WFE} \;=\; \frac{\sum_k w_k\, r_k}{\sum_k w_k},\quad w_k = \text{test trades of fold } k $$</div>
+<p>The mean is <b>trade-weighted</b>: a fold that actually traded 12 times says more about generalization than a fold that
+traded twice, so it counts proportionally more. (A 2026-07-14 bug fix matters here: a fold whose trade count came back as
+NaN — not-a-number — used to silently disable the weighting for exactly the most starved pairs; <code>_wf_fold_trades</code>
+now treats NaN as zero.)</p>
+
+<h3>The fold-validity guard — a one-trade fold is a coin flip (2026-07-14)</h3>
+<p>At the slow long-only cadence our book actually trades (roughly 7 direction changes a year), a 4-month test fold holds
+about one trade — and then its "generalization ratio" is just the sign of that one trade, a coin flip dressed up as a
+measurement. The book audit that motivated the guard found <b>84% of folds held two or fewer trades, and six zero-trade
+folds scored a perfect capped 3.0</b>. So two guards now apply (constants in <code>fep_robustness.py</code>):</p>
+<ul class="derive">
+  <li><b>A fold with fewer than <code>WF_FOLD_MIN_TRADES = 3</code> test trades does not count.</b> It is non-informative and
+  is excluded from every walk-forward aggregate (mean ratio, positive-fold fraction, recent ratio).</li>
+  <li><b>Fewer than <code>WF_MIN_VALID_FOLDS = 2</code> informative folds means there is no measurement.</b> Walk-forward
+  efficiency is then reported as <b>"not measurable (n/a)"</b> (<code>wfe_status = "na_too_few_events"</code>) instead of a
+  number that would read as pass or failure but is really noise.</li>
+</ul>
+
+<h3>The certifiable regime — with enough trades, the number always exists and the floor is live</h3>
+<p>When the folds together hold at least <code>WFE_MIN_TRADES = 30</code> total out-of-sample (OOS — data the tuning never
+saw) trades, walk-forward efficiency is <b>certifiable</b>: the aggregate uses the trade-weighted mean over <em>all</em>
+folds, so "not measurable" is unreachable by construction, and the <code>WFE_STABLE_FLOOR = 0.50</code> hard FRAGILE gate is
+fully live. Below 30 total trades the number (when it exists) is advisory: it can no longer hard-fail the committee, but it
+also cannot certify temporal stability, so a would-be ROBUST verdict is capped at BORDERLINE
+(<code>wf_uncertified</code>).</p>
+<div class="note"><b>The monotonicity invariant</b> (adversarial review, 2026-07-14): "not measurable" must never earn a
+<em>better</em> verdict than any measured number could. Two mechanisms enforce it: (1)&nbsp;every n/a state — guard-tripped,
+young, or no folds at all — caps a would-be ROBUST at BORDERLINE exactly like the uncertified case; (2)&nbsp;in the
+certifiable regime n/a is unreachable, so the hard-fail path cannot be dodged by arranging for thin folds. In
+<code>fep_verdict</code> the n/a check is keyed on the ratio being absent or the explicit status — never on whether the fold
+list is empty — so the young path cannot slip past the cap either.</div>
+
+<h3>Young assets are tagged, not scored</h3>
+<p>Under <code>WF_YOUNG_MIN_YEARS = 2.5</code> years of history, not even one informative fold is <em>expected</em> (36-day
+folds on the HYPE pairs put the expected trade count near 0.3): walk-forward is structurally impossible there, not merely
+noisy. Such assets are tagged <code>"young"</code> — the folds are kept for display, the aggregates are None — and the pane
+shows a tag instead of a punishing red 0.0. The BORDERLINE cap above still applies, so youth is never an advantage.</p>
+
+<h3>Cadence-aware fold sizing — make the folds fit the tempo (2026-07-14)</h3>
+<p>A slow committee cannot be measured with fast folds, so the fold design adapts to the committee's tempo:</p>
+<ul class="derive">
+  <li><b>Slow committees get two long folds.</b> If the committee trades fewer than
+  <code>SLOW_TRADES_YR_THRESHOLD = 12.0</code> trades per year on the <em>in-sample</em> (IS — the tuning window) span, the
+  walk-forward runs <b>2 long folds of roughly 12 months</b> instead of the default 4 short ones
+  (<code>n_folds_eff = 2</code> in <code>_compute_report</code>), so each fold holds enough trades to clear the 3-trade
+  validity guard at all. The trades-per-year rate is measured on <code>metrics_is</code>, never on the full period — using
+  the full period would leak the walk-forward tail into the fold design.</li>
+  <li><b>Slow long-only ratio runs start the tail earlier.</b> For long-only ratio-basket generation
+  (<code>LONG_ONLY_SCORING</code> with <code>ratio_pairs</code>) the default in-sample fraction drops from the historical
+  0.75 to <code>SLOW_WF_IS_FRAC = 0.65</code> (<code>config.py</code>), leaving a walk-forward tail of about 2.1 years on a
+  ~6-year pair — exactly enough room for the two ~12-month folds to exist. An explicitly passed fraction always wins.</li>
+</ul>
+
+<h3>Division of labor — re-tuning survival is a different question from time-consistency</h3>
+<p>It is tempting to read walk-forward efficiency as "the time gate", but the system deliberately asks <b>two different
+temporal questions with two different tools</b>:</p>
+<table>
+<thead><tr><th></th><th>Walk-forward efficiency (WFE)</th><th>Time-consistency (the TIME gate, &sect;6b)</th></tr></thead>
+<tbody>
+<tr><td>Plain question</td><td>If I honestly re-tune and trade forward, does the edge survive the re-optimization?</td><td>Does the <em>locked</em> committee make its money in every stretch of history, or in one lucky era?</td></tr>
+<tr><td>What is varied</td><td>The parameters — re-fit per fold on the expanding train window.</td><td>Nothing — the shipped committee is frozen; only the evaluation window moves.</td></tr>
+<tr><td>Evidence it needs</td><td>Trades in each test fold (hence the 3-trade guard, the 30-trade certifiability bar, and the fold resizing).</td><td>Daily returns only — Sharpe/Sortino/Omega per slice are trade-count-agnostic, so even a starved pair is measurable.</td></tr>
+<tr><td>Failure it catches</td><td>A curve-fit: parameters that only worked because they were fit to the past.</td><td>A one-era wonder: a committee whose whole profit lives in a single regime (spread cap <code>TIME_COV_CAP = 1.10</code>, dead-slice floor <code>TIME_CORE_FLOOR = 0.05</code>).</td></tr>
+</tbody>
+</table>
+<p>A committee can pass one and fail the other in both directions: a stable set of parameters can still have earned
+everything in 2021 (walk-forward efficiency fine, time-consistency fails on the dead slice), and a committee that earns in
+every era can still collapse when re-fit (time-consistency fine, walk-forward efficiency below the floor). That is why both
+are independent hard gates rather than one blended score — and why the fold-validity guard weakening walk-forward efficiency
+into "not measurable" on starved pairs does <em>not</em> leave the temporal axis unguarded: the trade-count-agnostic
+time-consistency gate keeps watching.</p>
+
 <!-- ============================ 6 ============================ -->
 <h2 class="section" id="cov"><span class="n">6</span>Parameter CoV — why spread <em>is</em> a gate</h2>
 <p>Around the tuned point we sweep each parameter &plusmn;3 and recompute the metrics. The <b>coefficient of variation</b> (std/mean) of the
@@ -1361,6 +1667,165 @@ capped at BORDERLINE (<code>wf_uncertified</code>). The distinction is deliberat
 the edge doesn't depend on hitting an exact parameter. A wide one means a <em>spike</em> you probably curve-fit. CoV &gt; the cap (default 0.20)
 is a hard FRAGILE gate; the Auto-TPI pane can tighten the cap per run, and — as of the June-2026 reconciliation — that slider reaches the
 <em>live</em> verdict, not just the display.</p>
+<!-- ============================ 6b — TIME CONSISTENCY ============================ -->
+<h2 class="section" id="time"><span class="n">6b</span>Time-consistency — the TIME neighbourhood</h2>
+<p class="lede">Does the committee make its money in <em>every</em> stretch of history, or in one lucky era? The TIME
+neighbourhood is the temporal twin of the &plusmn;3 parameter sweep: instead of nudging the knobs, we nudge the
+<em>era</em> — and demand the scorecard barely move.</p>
+
+<h3 id="time-why">Why a second temporal gate — the walk-forward starves, daily returns do not</h3>
+<p>The load-bearing temporal check used to be walk-forward efficiency (WFE) — re-optimize on each fold, test on the
+held-out tail, require the edge to keep &ge; 50% of its strength. WFE is <em>trade-based</em>, and that is its physical
+limit on this book: a slow long-only committee decides roughly seven times a year, so a 4-month test fold holds about
+<b>one</b> trade, and its "generalization ratio" is the sign of a coin flip. The 2026-07-14 book audit made this concrete:
+<b>84% of walk-forward folds held &le; 2 trades, and six zero-trade folds scored a perfect 3.0</b>
+(<code>fep_robustness.py</code>, the PAXGDOGE lesson). The conditional-WFE rule (&sect;5) already refuses to let that noise
+hard-fail anyone — WFE may only veto when the folds together hold &ge; <code>WFE_MIN_TRADES = 30</code> out-of-sample (OOS)
+trades — but the same rule means that on a trade-starved book the temporal axis was mostly <em>unmeasured</em>, not merely
+noisy.</p>
+<p>Daily-return metrics do not starve. A quarter of our pre-lockbox history is a 14&ndash;18-month slice holding
+~300&ndash;450 daily returns — plenty for Sharpe, Sortino and Omega, which are computed from every bar rather than from
+trade events. So the TIME neighbourhood scores each slice on exactly those three
+(<code>_TIME_COV_METRICS = ("Sharpe", "Sortino", "Omega")</code>); Profit Factor, %Profitable and trade counts at 3&ndash;8
+trades per slice are order-statistic noise and are recorded but never gate. Division of labour, stated once: <b>TIME =
+does the locked committee's edge exist in every era</b> (always measurable past 2.5 years of history); <b>WFE = does the
+edge survive re-optimization</b> (certifiable only at &ge; 30 OOS trades). ROBUST requires both.</p>
+<div class="note tiny">Companion repair on the WFE side (2026-07-14): when the in-sample window shows fewer than
+<code>SLOW_TRADES_YR_THRESHOLD = 12</code> trades per year, the walk-forward runs <b>2 long (~12-month) folds</b> instead of
+4 short ones, so each fold holds enough trades to measure anything at all; slow long-only ratio runs also default to a
+0.65 in-sample fraction (<code>config.SLOW_WF_IS_FRAC</code>) so the walk-forward tail is ~2 years. The trades/yr trigger is
+read from the in-sample metrics only — never the full period, which would leak the walk-forward tail into the fold design.</div>
+
+<h3 id="time-construction">Construction — four slices, scored exactly as production trades</h3>
+<ul class="derive">
+  <li><b>Span.</b> The pre-lockbox history <code>[START_DATE, lockbox start)</code>. At the generation call site the frame is
+  <em>already</em> lockbox-truncated and <code>end_ts=None</code>, so the slices are structurally incapable of touching the
+  reserved 6-month holdout (&sect;14a) — leak-free by construction, not by promise.</li>
+  <li><b>Cut.</b> <code>TIME_K_WINDOWS = 4</code> equal contiguous slices — quarters of a ~5&ndash;6.5-year span, i.e.
+  ~14&ndash;18 months each, regime-sized. Halves, thirds and rolling windows were tested during calibration and rejected:
+  no separating power, or an inverted GOOD/BAD ordering.</li>
+  <li><b>Score.</b> The <em>locked</em> committee (tuned parameters frozen — this is a stability probe, not a re-fit) is
+  scored per slice on the production profit-and-loss basis: long-only traded sign (a bearish read rotates to cash, never
+  short — <code>_traded_sign</code>), net of the run's transaction cost (<code>_active_cost_bps</code>), and on the correct
+  annualization basis (365 bars/yr crypto, 252 stocks). The composite signal is computed <b>once</b>; only K sliced
+  backtests follow — the cheapest robustness axis in the report.</li>
+  <li><b>Validity.</b> A slice shorter than <code>TIME_WIN_MIN_BARS = 60</code> bars is dropped; fewer than
+  <code>TIME_MIN_VALID_WINDOWS = 4</code> valid slices &rArr; the axis is "n/a (too few history slices)". A history shorter
+  than <code>WF_YOUNG_MIN_YEARS = 2.5</code> years &rArr; "young". Both are handled below — non-blocking, but never free.</li>
+</ul>
+
+<h3 id="time-gate1">Gate 1 — the spread across eras (TIME-CoV), and why it fails <em>closed</em></h3>
+<p>For each daily-return metric we ask how much its per-slice values scatter, using the coefficient of variation (CoV) —
+the standard deviation divided by the absolute mean — and then judge the <em>worst</em> of the three metrics:</p>
+<div class="formula">$$ \mathrm{CoV}_{\text{time}}(m) \;=\; \frac{\sigma_{\text{pop}}\!\big(m_1,\dots,m_K\big)}{\lvert\,\overline{m}\,\rvert}\,,
+\qquad m \in \{\text{Sharpe},\ \text{Sortino},\ \Omega\},\ \ K = 4 $$</div>
+<div class="formula">$$ \text{TIME-CoV}_{\text{worst}} \;=\; \max_{m}\ \mathrm{CoV}_{\text{time}}(m) \;\le\; \texttt{TIME\_COV\_CAP} = 1.10
+\qquad \text{(hard FRAGILE gate)} $$</div>
+<div class="formula tight">$$ \mathrm{CoV}_{\text{time}}(m) \;=\; +\infty \quad \text{when } \lvert\overline{m}\rvert \le 10^{-9}
+\ \text{ or fewer than 2 finite slices} \qquad \text{(fail closed)} $$</div>
+<p>The fail-closed rule is deliberate and is the one place this gate differs philosophically from its parameter twin. The
+parameter-sweep CoV (&sect;6, <code>neighborhood_robustness</code>) writes <code>NaN</code> when a metric's neighbourhood mean is
+degenerate — it fails <em>open</em>, because the parameter axis is backstopped by six other hard gates. The TIME axis is
+often the <b>only</b> temporal gate a trade-starved pane will ever face (WFE being advisory there), so an unmeasurable
+spread must read as "not stable" (<code>inf</code>, a hard fail with the plain-language reason "unstable across time"), never
+as a silent pass.</p>
+
+<h3 id="time-gate2">Gate 2 — no dead stretch of history (the strict worst-slice floor)</h3>
+<p>Spread alone is not enough: a committee can post a tight CoV around a mediocre mean while one entire era earned
+nothing. So the <em>worst</em> slice's core performance — the same trade-count-agnostic blend the walk-forward uses
+(<code>_core_perf</code>, roughly 1.0 when a slice's metrics sit at the &sect;3 edge floors, the &ldquo;COBRA green&rdquo; levels) — must stay above a floor:</p>
+<div class="formula">$$ \text{core}_k \;=\; \max\!\Big(0,\ \tfrac{1}{4}\Big(\tfrac{\text{Sharpe}_k}{2} + \tfrac{\text{Sortino}_k}{3}
++ \tfrac{\Omega_k}{1.35} + \tfrac{\min(\text{PF}_k,\,10)}{4}\Big)\Big) $$</div>
+<div class="formula">$$ \min_{k}\ \text{core}_k \;\ge\; \texttt{TIME\_CORE\_FLOOR} = 0.05 \qquad \text{(STRICT minimum — hard FRAGILE gate)} $$</div>
+<p>This is a strict minimum <b>on purpose</b>. The obvious softening — drop the single worst slice, mirroring the
+walk-forward's outlier-tolerant worst fold — was prototyped during calibration and <b>rejected: it passed every single
+operator-rated-BAD pane</b>. The dead slice is not an outlier to forgive; it <em>is</em> the one-lucky-era signal the gate
+exists to catch. The floor's value is not arbitrary either: 0.05 sits just below the weakest slice of any rated-GOOD pane
+<em>in the calibration set</em> (ETHSUI's quiet quarter, core &asymp; 0.06), so honest lulls pass while a genuinely dead era
+cannot. (Outside the set the gate is stricter than the operator's eye: four GOOD-rated panes fail it — see below.)</p>
+
+<h3 id="time-young">Young assets and unmeasurable panes — n/a is non-blocking but never free</h3>
+<p>A pair younger than 2.5 years, or one with fewer than 4 valid slices, gets <code>time_status = "young"</code> /
+<code>"na_too_few_windows"</code> and <code>None</code> values: the axis does not gate (you cannot fail a measurement that does
+not exist). But the same monotonicity invariant that governs the WFE-n/a case applies: <b>an unmeasured pane must never
+out-rank a measured one</b>. A would-be-ROBUST verdict with TIME n/a is capped at BORDERLINE
+(<code>time_na_capped</code>, reason "time-consistency n/a &hellip; stable but temporally unverifiable"), exactly parallel to
+the WFE-n/a cap of &sect;5.</p>
+
+<h3 id="time-calibration">The calibration story — 6/6 GOOD from 6/6 BAD, including the twins the JSON could not split</h3>
+<p>The thresholds were not designed at a whiteboard; they were calibrated (2026-07-14) on the v4 book against the
+operator's 55-pane visual quality review (52 panes rated: 20 GOOD, 6 BAD, 26 in between). Twelve decisively rated panes
+formed the calibration set, re-scored under the four-slice scheme — all six rated BAD (including ETHBTC, the known
+regression) and six of the twenty rated GOOD. The gate separates the set perfectly, and the <em>mechanism</em> is visible
+in the last column: <b>every rated-BAD pane has at least one dead history quarter (worst-slice core 0.00); every GOOD pane
+in the set stays positive in its worst quarter.</b></p>
+<table>
+<thead><tr><th>Pane</th><th class="c">Operator rating</th><th class="c">worst-metric CoV across slices</th>
+<th class="c">worst-slice core</th><th>per-slice cores (4 quarters)</th><th class="c">TIME gate</th></tr></thead>
+<tbody>
+<tr><td>SOLETH</td><td class="c">GOOD</td><td class="c">0.56</td><td class="c">0.55</td><td>0.55 &middot; 1.05 &middot; 0.90 &middot; 0.72</td><td class="c"><span class="pill robust">pass</span></td></tr>
+<tr><td>PAXGDOGE</td><td class="c">GOOD</td><td class="c">0.28</td><td class="c">0.48</td><td>0.55 &middot; 0.89 &middot; 0.48 &middot; 0.68</td><td class="c"><span class="pill robust">pass</span></td></tr>
+<tr><td>ETHSUI</td><td class="c">GOOD</td><td class="c">0.98</td><td class="c">0.06</td><td>1.13 &middot; 0.97 &middot; <b>0.06</b> &middot; 1.63</td><td class="c"><span class="pill robust">pass</span></td></tr>
+<tr><td>PAXGXRP</td><td class="c">GOOD</td><td class="c">0.66</td><td class="c">0.21</td><td>0.72 &middot; 0.73 &middot; 0.21 &middot; 0.72</td><td class="c"><span class="pill robust">pass</span></td></tr>
+<tr><td>PAXGSUI</td><td class="c">GOOD</td><td class="c">0.34</td><td class="c">0.94</td><td>1.47 &middot; 0.94 &middot; 1.08 &middot; 1.36</td><td class="c"><span class="pill robust">pass</span></td></tr>
+<tr><td>MSTRMU</td><td class="c">GOOD</td><td class="c">0.98</td><td class="c">0.07</td><td>1.07 &middot; <b>0.07</b> &middot; 0.77 &middot; 1.22</td><td class="c"><span class="pill robust">pass</span></td></tr>
+<tr><td>SOLDOGE</td><td class="c">BAD</td><td class="c">1.24</td><td class="c">0.00</td><td>1.29 &middot; 0.66 &middot; 1.36 &middot; <b>0.00</b></td><td class="c"><span class="pill fragile">fail</span></td></tr>
+<tr><td>SUIDOGE</td><td class="c">BAD</td><td class="c">1.97</td><td class="c">0.00</td><td>0.16 &middot; 1.11 &middot; 1.24 &middot; <b>0.00</b></td><td class="c"><span class="pill fragile">fail</span></td></tr>
+<tr><td>SUIXRP</td><td class="c">BAD</td><td class="c">2.54</td><td class="c">0.00</td><td>0.91 &middot; 0.56 &middot; 1.42 &middot; <b>0.00</b></td><td class="c"><span class="pill fragile">fail</span></td></tr>
+<tr><td>NVDADELTA</td><td class="c">BAD</td><td class="c">1.70</td><td class="c">0.00</td><td>0.82 &middot; 0.42 &middot; 1.62 &middot; <b>0.00</b></td><td class="c"><span class="pill fragile">fail</span></td></tr>
+<tr><td>BNBETH</td><td class="c">BAD</td><td class="c">1.94</td><td class="c">0.00</td><td>1.35 &middot; <b>0.00</b> &middot; 0.16 &middot; 1.37</td><td class="c"><span class="pill fragile">fail</span></td></tr>
+<tr><td>ETHBTC</td><td class="c">BAD (regression)</td><td class="c">13.73</td><td class="c">0.00</td><td>1.24 &middot; 0.33 &middot; <b>0.00</b> &middot; 0.61</td><td class="c"><span class="pill fragile">fail</span></td></tr>
+</tbody>
+</table>
+<p class="tiny muted">Provenance: the numbers above are the 2026-07-14 calibration-run snapshot. The committed book
+relabel (<code>3bcacaa</code>), re-measured hours later on refreshed data, reproduces every pass/fail verdict in this table
+with small numeric drift (e.g. SOLDOGE spread 1.24&rarr;1.31, SUIDOGE 1.97&rarr;2.30, ETHBTC 13.7&rarr;12.0).</p>
+<ul class="derive">
+  <li><b>The margin is real, on both sides of the calibration set.</b> The worst GOOD spread in the set is 0.984 (MSTRMU)
+  and the best BAD spread is 1.241 (SOLDOGE) — the 1.10 cap sits in the gap with room either way, and it also clears
+  SOLPAXG (rated GOOD, spread 1.006) from the wider book sweep. In that wider sweep the gate is <em>stricter</em> than the
+  eyeball review — four GOOD-rated panes (SOLBNB, SOLSUI, SUIBNB, TSLANVDA) fail it, and all four were honestly refused at
+  the v5 regeneration — but the load-bearing direction is one-way: BAD detection is insensitive to the exact cap across
+  the whole [1.0, 1.25] range, and no operator-rated-BAD pane passes anywhere in the book.</li>
+  <li><b>The SOLDOGE twins.</b> SOLDOGE and SUIDOGE carried near-identical <em>stored</em> robustness signatures — the
+  existing JSON axes (edge floors, parameter CoV, Monte-Carlo (MC) survival, walk-forward) literally could not tell the
+  panes apart, yet the operator rated both BAD on sight. Time-consistency is the measured axis that matches the eyeball
+  judgement: both die on a dead final quarter.</li>
+  <li><b>Recalibrate each regeneration epoch.</b> The caps were fitted to the 12-pane set with no holdout; they are stamped
+  in <code>fep_robustness.py</code> with that caveat and must be re-checked against the next operator review.</li>
+</ul>
+
+<h3 id="time-enforcement">Where it is enforced — the same four places as the parameter CoV, plus the dashboard</h3>
+<table>
+<thead><tr><th>Layer</th><th>Rule</th><th>Effect</th></tr></thead>
+<tbody>
+<tr><td>Live verdict (<code>fep_verdict</code>)</td><td><code>time_stable</code> joins the hard-gate conjunction: spread over the
+cap, a dead slice, or a fail-closed <code>inf</code> &rArr; FRAGILE with a plain-language reason ("dead stretch of history" /
+"unstable across time"). A tripped TIME gate lands in <code>crit</code>, which <b>structurally blocks the low-N evidence
+rescue</b> (R1): a starved pair whose profits sat in one lucky era can never be rescued to BORDERLINE.</td>
+<td>hard FRAGILE gate</td></tr>
+<tr><td>Candidate selection (<code>tpi_autogen</code>)</td><td>after the CoV reject, every top candidate is checked against the
+same two rules (<code>_time_ok</code>); failures are discarded and ledger-tagged <code>time_cov_final</code>. If <em>every</em>
+candidate fails, the run size-descends (drop one child, retry) and, exhausted, <b>refuses honestly — the incumbent TPI
+stays</b> (&sect;11b). Young / n/a candidates are <em>not</em> rejected here; the verdict's BORDERLINE cap handles them
+(monotonicity, never better than measured).</td><td>hard selection reject + size-descend</td></tr>
+<tr><td>Selection sort (<code>_stable</code>)</td><td>time-consistency is the third conjunct of the robust-or-stable sort key
+(with the walk-forward floor and the parameter-CoV cap), so a time-scattered candidate can never out-rank a measured,
+consistent one even before the hard reject fires.</td><td>ranking</td></tr>
+<tr><td>Regen Readiness (<code>ship_ok</code>)</td><td><code>time_stable</code> joined the mandatory stability conjunction for the
+FRAGILE-fallback deploy path (defaulting to True for artifacts that predate the gate, so old reports keep their
+semantics): a one-lucky-era TPI can never deploy as "best available".</td><td>deployability</td></tr>
+<tr><td>Dashboard</td><td>the robustness table carries a <b>T-CoV</b> column with the plain-language legend ("does it make
+its money in every stretch of history, or one lucky era? &hellip; gate &le; 110%, and NO slice may be dead — worst-slice core
+&ge; 0.05") and a per-run cap slider (<code>max_time_cv</code>) that reaches the live verdict and the selection reject alike,
+forwarded through <em>both</em> size-descend recursion sites so a descent never silently loosens the gate.</td>
+<td>display + per-run override</td></tr>
+</tbody>
+</table>
+<div class="note tiny">Rollout flag: <code>config.TIME_GATE_ENABLED = True</code>. When switched off the TIME metrics are
+still computed and written into every report — they just stop gating verdicts and selection, so the axis can be observed
+before it is trusted (the same pattern the cadence gates used).</div>
+
 <!-- ============================ 7 ============================ -->
 <h2 class="section" id="annual"><span class="n">7</span>Annualization — same floors, correct scale</h2>
 <p>Sharpe and Sortino are annualized by \(\sqrt{\text{periods/yr}}\). Crypto trades 24/7 (365 bars/yr); equities trade ~252 sessions.
@@ -1368,7 +1833,29 @@ Using 365 for a stock inflates its Sharpe/Sortino by \(\sqrt{365/252}\approx1.20
 a spurious credit for a whole asset class. The June-2026 fix makes annualization asset-class-aware (<code>backtester.annualization()</code>,
 set per run by the autogen wrapper). Profit Factor and Omega are scale-invariant, so <b>only Sharpe/Sortino move</b>.</p>
 <div class="note">Re-scoring the 16 stock TPIs on the 252 basis produced <b>zero verdict flips</b> — the correction never crosses a floor decisively
-(it can only lower Sharpe/Sortino, so it can only ever demote, and none were that close). It is a units-correctness fix, not a re-labelling.</div>
+(it can only lower Sharpe/Sortino, so it can only ever demote, and none were that close). It is a units-correctness fix, not a re-labelling.
+The basis is now passed as an <b>explicit <code>periods_per_year</code></b> at every stock scoring site (backtest, OOS, dashboard, forward test),
+with a <em>thread-local</em> ambient fallback for the generation pipeline — so a background stock-generation job can never poison metrics
+computed concurrently on a dashboard request thread (the old process-global <code>_ACTIVE_PPY</code> could).</div>
+
+<!-- ============================ 7b — TRANSACTION COSTS ============================ -->
+<h3 id="costs" style="color:var(--accent2);border-top:1px solid var(--line);padding-top:16px">Transaction costs — the floors are gross; costs live at the portfolio layer</h3>
+<p>Be explicit about what the edge floors do <em>not</em> include: the per-TPI COBRA metrics (Sharpe&nbsp;0.70, Sortino&nbsp;1.0, PF&nbsp;1.5,
+Omega&nbsp;1.15) are computed on a <b>frictionless</b> equity curve. The TPI scoring path
+(<code>signal_to_equity&nbsp;&rarr;&nbsp;Backtester.from_price_series</code>) has no cost hook, so every verdict floor is gross-of-cost by
+construction. That is deliberate — a per-pair TPI is a <em>vote</em>, not a tradable book — but it must be <em>stated</em>, not assumed.</p>
+<p>Costs are modeled one level up, at the <b>rotation / portfolio</b> layer, by a toggleable venue-aware fee model
+(<code>config.FEES_ENABLED</code>, default&nbsp;<b>off</b>; <code>Backtester.net_portfolio_returns</code> is the single accounting core shared by
+the headline equity <em>and</em> both OOS evaluators, so they can never diverge net-vs-gross). Buys pay <code>buy_bps</code>, sells pay
+<code>sell_bps</code> — Korean/Taiwanese sell-side transaction taxes live on the sell leg — plus per-class slippage; cash legs are never charged,
+so an asset&rarr;asset switch books sell+buy while an asset&rarr;cash flip books one side. Researched 2026-07 schedule: <b>Bybit spot</b>
+10&nbsp;bps/side for crypto (PAXG trades there only as a USDT <em>perpetual</em>); <b>Interactive Brokers tiered</b> for stocks (US&nbsp;~1&ndash;1.3&nbsp;bps,
+KRX&nbsp;7/27, TWSE&nbsp;11/41 incl. the 0.20% / 0.30% sell taxes). Turning the toggle on decorates the report with a dashed gross reference curve,
+a compounded <b>Fee&nbsp;Drag&nbsp;%</b>, and annual one-way turnover (cash legs excluded).</p>
+<div class="note">What it costs, measured (2020&rarr;2026, standard tier): the crypto top-3 rotation keeps a decisive edge net of fees — terminal-wealth
+<b>Fee Drag &asymp; 28%</b>, ~40 one-way turns/yr, and it still beats BTC buy-&amp;-hold even at <b>5&times;</b> fees. The turnover count is the lever,
+not the per-trade rate. <b>Open (Tier-1.1):</b> because the fee model does not reach the TPI scoring path, the per-TPI <em>verdict</em> is still
+gross-of-cost — netting the verdict floors is deferred work and would require re-deriving the book on net returns.</div>
 
 <!-- ============================ 8 — OPTIMIZER ============================ -->
 <h2 class="section" id="pipeline"><span class="n">8</span>How the optimizer employs these principles</h2>
@@ -1433,6 +1920,88 @@ If every size is FRAGILE, keep the largest (nothing is silently shipped as robus
   </div>
 </div>
 
+<!-- ============================ 11b — PIPELINE UPDATES ============================ -->
+<h3 id="pipeline-updates" style="color:var(--accent2);border-top:1px solid var(--line);padding-top:16px">
+Pipeline updates (2026-07-14/15) — the beam repair, incumbent seeding, the time_robust ledger stage, and honest refusal</h3>
+<p class="muted">Four changes to the search machinery of &sect;8&ndash;&sect;11, shipped with the time-consistency gate
+(&sect;6b). Each exists because a hard gate somewhere else created a blind spot the search could fall into.</p>
+
+<h3 id="pipe-beam-soft">The beam repair — a hard wall at the beam made the ranking meaningless; now a steep discount</h3>
+<p>The beam stage ranks indicator <em>sets</em> cheaply, by compositing each child's <b>solo-tuned</b> parameters — no joint
+tune has happened yet. That shortcut has a systematic bias: solo-tuned children run roughly <b>2&times; whippier</b> than the
+same set tuned jointly, because the solo screen applies no tempo pressure (nothing rewards a child for agreeing with
+committee-mates it has not met). When the time-coherence cadence gate was applied as a hard zero at this stage, it judged
+every candidate on behaviour joint tuning would later fix — and on ETHBTC it zeroed <b>~99% of beam evaluations</b>.
+Ranking over a field of zeros is meaningless, and it had a concrete casualty: the live incumbent's PSAR+ST seed pair
+scored 0 at beam, so the known-good committee was <em>unreachable by construction</em>, and the shipped replacement was
+worse on every recorded metric.</p>
+<p>The repair (2026-07-14): at the beam <b>only</b>, a cadence-violating set is scored at a multiplicative
+<b>&times;0.30 discount</b> instead of zero (ledger tag <code>cadence_beam_soft_*</code> — penalized, not rejected). Clean sets
+still dominate the ranking, but a set that joint tuning could calm stays comparable instead of invisible. Nothing
+degenerate can ship through this softening, because the gate stays <b>hard everywhere that matters</b>: inside the tuning
+objective (an Optuna trial whose tuned signal violates cadence scores 0.0, ledger <code>cadence_tune_*</code>) and at final
+combo-level selection (a violating tuned combo is refused outright — see the refusal semantics below).</p>
+<div class="note tiny">Why the soft/hard split is safe: the beam only decides <em>which sets get a joint tune</em>; the tune
+and final gates decide what can ship. A discount at the proposal stage cannot leak a whippy committee into the book —
+it can only stop the proposal stage from starving the tune of its best candidates.</div>
+
+<h3 id="pipe-incumbent">Incumbent seeding — a regeneration may only replace the live committee by beating it under the same judges</h3>
+<p>The same ETHBTC episode exposed a second blind spot: the live committee is a known-good candidate the beam can no
+longer <em>see</em> (its seed pair dies under solo-tuned params), so a regeneration could silently replace a healthy
+incumbent with something worse simply because the incumbent never entered the race. Now it always does:</p>
+<ul class="derive">
+  <li><b>Seeded into the joint tune.</b> The current on-disk committee (the <code>codes</code> of
+  <code>robustness_&lt;name&gt;.json</code>) is appended to the combo list, tagged <code>"incumbent"</code> — provided it matches the
+  run's size, has no duplicate or dead-on-tuning children, and every code is in the active pool. Best-effort and never
+  fatal: a malformed artifact skips the seeding, it cannot crash a run.</li>
+  <li><b>Snapshot source.</b> The environment variable <code>RSPS_INCUMBENT_DIR</code> redirects the seed to a snapshot of a
+  known-good book (e.g. master's live committees) instead of the working tree — because the on-disk book may itself be a
+  degraded regeneration output (the very thing being replaced), and re-seeding a degraded incumbent recovers nothing.</li>
+  <li><b>Always judged.</b> After tuning, the incumbent joins the full-robustness-report set <em>unconditionally</em> —
+  additively, so the weak-dominance top-k of &sect;9 (the exact eval set the old free-only beam would have produced) is
+  untouched. It then competes under the identical selection key: verdict rank, then the robust-or-stable conjunction
+  (<code>_stable</code>: walk-forward floor, parameter-CoV cap, time-consistency), then the performance rank
+  (<code>_perf_rank</code>).</li>
+</ul>
+<p>The consequence is a one-way ratchet: <b>a regeneration can only replace the incumbent with a candidate that honestly
+out-ranks it under the same judges</b>. If everything the search finds is worse, the incumbent wins its own regen; if
+everything is refused by the hard gates, the incumbent stays by refusal (below). Either way "regenerate" can no longer
+mean "quietly downgrade".</p>
+
+<h3 id="pipe-ledger-time">The <code>time_robust</code> ledger stage — new evaluations, still an honest N</h3>
+<p>The time-consistency check (&sect;6b) adds K sliced backtests per candidate. Every one of them is counted in the trial
+ledger (&sect;14b) under its own stage, <code>time_robust</code> — same pattern as the <code>mc</code>, <code>sweep</code> and
+<code>walk_forward</code> stages. Like those, it is a <b>diagnostic</b> stage: the evaluations are recorded for audit but
+<b>excluded from <code>selection_trials_n</code></b>, the honest N behind the expected-max-of-noise null — a slice backtest
+diagnoses an already-chosen combo, it is not a draw against the null. So the new gate makes the search <em>more</em>
+auditable without inflating (or deflating) the selection-over-noise benchmark.</p>
+
+<h3 id="pipe-refusal">Honest refusal — refuse, descend, keep the incumbent, flag</h3>
+<p>Three hard walls stand at final selection, in order: the <b>cadence gates</b> (whippy or tempo-incoherent tuned combos),
+the <b>parameter-CoV reject</b> (worst-metric coefficient of variation (CoV) over the cap, default 0.20 — the MUDELTA 112%
+lesson), and the <b>time-consistency reject</b> (spread over 1.10 across history slices, or a dead slice — &sect;6b). Each
+discards individual candidates first (ledger tags <code>cov_final</code>, <code>time_cov_final</code>); the interesting case is
+when a wall eliminates <em>every</em> candidate. The pipeline then refuses to ship the least-bad. Instead,
+<code>_descend_on_refusal</code>:</p>
+<ul class="derive">
+  <li><b>Descend.</b> Drop one child and rerun the whole search at the smaller size (5 &rarr; 4 &rarr; 3, down to
+  <code>min_size = 3</code> — two-voter committees cannot ship). The per-run caps (<code>max_metric_cv</code>,
+  <code>max_time_cv</code>) are forwarded through <em>both</em> recursion sites, so a descent can never silently loosen a gate.
+  The old code only descended on a FRAGILE <em>verdict</em>; a size-5 whose candidates were all hard-rejected simply gave up,
+  even when a clean smaller committee existed (SOLPAXG: no acceptable 5-child set, but a clean 3-child
+  NKAMA+DUAL+AAMDMOM passes everything).</li>
+  <li><b>Refuse.</b> If even <code>min_size</code> yields nothing acceptable, the run raises
+  <code>"no acceptable committee; keeping the incumbent TPI"</code> — a first-class outcome, not an error to retry. Nothing is
+  written; the live book keeps the incumbent.</li>
+  <li><b>Flag.</b> The refused pair is recorded in <code>RSPS/incoherent_pairs.json</code> with its refusal reason. The
+  dashboard pane carries a loud plain-language badge (red "NOT REBUILT — OLD SIGNAL KEPT", or dark "VOTE MUTED" when the
+  sleeve's mute policy is on — &sect;12b), so a refusal is impossible to mistake for a certification.</li>
+</ul>
+<div class="note">The philosophy, stated once: <b>shipping an unacceptable committee is worse than failing the
+generation.</b> A refusal keeps a known quantity voting (or, under &sect;12b, silences it measurably for free) and tells the
+operator the truth — that no time-coherent, parameter-stable, era-consistent committee currently exists on that cross at
+this search budget.</div>
+
 <!-- ============================ 12 ============================ -->
 <h2 class="section" id="ceiling"><span class="n">12</span>The ceiling is the asset, not the search</h2>
 <p>Put &sect;10 together and a clear picture emerges: the per-pair robustness layer is <b>at the asset ceiling</b>. On a book with a median of 17
@@ -1440,6 +2009,143 @@ OOS trades, the honest state of the world is that <em>most</em> TPIs cap at BORD
 isn't enough out-of-sample evidence to <em>certify</em> a temporal edge. That is a feature: the label tells the truth about what we can and
 cannot verify. The equity is untouched by all of this — the rotation votes every signal ungated; the verdict is an honest label, never a
 capital gate.</p>
+
+<!-- ============================ 12b — VOTE-MUTE POLICY ============================ -->
+<h2 class="section" id="mute"><span class="n">12b</span>When no trustworthy committee exists — the vote-mute policy</h2>
+<p class="lede">A refused pair (&sect;11b) leaves the rotation with a question: should the stale, uncertified incumbent keep
+voting with real money? The answer is measured, per sleeve, and it differs — which is exactly why it had to be measured.</p>
+
+<h3 id="mute-what">What a muted vote is — a tie, not a hole</h3>
+<p>A pair for which the latest regeneration could build <b>no</b> gate-passing committee is listed in
+<code>RSPS/incoherent_pairs.json</code>. Under the mute policy (2026-07-15) such a pair casts a <b>zero vote</b> in the
+round-robin tournament: its strength series is returned <em>zeroed</em> — same index, every value 0 — so the matchup counts
+as a tie and the ranking is decided by the provable matchups. Nothing is dropped or re-plumbed: the tournament simply
+learns nothing from that cross.</p>
+<ul class="derive">
+  <li><b>One chokepoint per sleeve.</b> Crypto: <code>RSPS_main.pair_strength_series_engine</code> consults
+  <code>muted_pairs()</code> (gated by <code>config.MUTE_REFUSED_VOTES</code>). Stocks: <code>RSPS_stocks.stock_pair_strength_series</code>
+  (gated by <code>config.MUTE_REFUSED_VOTES_STOCKS</code>). Because the zeroing happens where the series is produced, the
+  backtest, the live weights and the dashboard display all see <em>one consistent muted signal</em> — no path can disagree.</li>
+  <li><b>Fails open, deliberately.</b> A missing or unreadable <code>incoherent_pairs.json</code> yields an empty refused set:
+  a broken file must never silently mute the whole book. (The list is mtime-cached and re-read on change.)</li>
+  <li><b>Reversible per pair.</b> A future regeneration that passes the gates removes the pair from the refused list and
+  the vote comes back automatically — the mute is a statement about the <em>current</em> evidence, not a blacklist.</li>
+</ul>
+
+<h3 id="mute-measured">Per-sleeve, measured both ways — net of fees, out-of-sample</h3>
+<p>Both directions were measured before either default was set: the full rotation was re-run with fees on
+(<code>FEES_ENABLED</code>) and judged on the out-of-sample (OOS) window from 2024-01-01, once with every vote active and once
+with the refused votes zeroed. The two sleeves gave opposite answers:</p>
+<table>
+<thead><tr><th>Sleeve</th><th class="c">Votes</th><th class="c">Refused &rarr; muted</th><th class="c">OOS Sharpe<br/>(voting &rarr; muted)</th>
+<th class="c">Yearly growth (CAGR)</th><th class="c">Max drawdown</th><th class="c">Decision</th></tr></thead>
+<tbody>
+<tr><td><b>Crypto majors</b> — a redundant 36-matchup matrix</td><td class="c">36</td><td class="c">12</td>
+<td class="c">1.38 &rarr; 1.37</td><td class="c">+83% &rarr; +76%</td><td class="c">&minus;38.5% &rarr; &minus;34.5%</td>
+<td class="c"><code>MUTE_REFUSED_VOTES = True</code></td></tr>
+<tr><td><b>Stocks</b> — a sparse ~15-vote winner-takes-all tournament</td><td class="c">~15</td><td class="c">4</td>
+<td class="c">2.02 &rarr; 1.91</td><td class="c">+212% &rarr; +198%</td><td class="c">&minus;39.1% &rarr; &minus;48.3%</td>
+<td class="c"><code>MUTE_REFUSED_VOTES_STOCKS = False</code></td></tr>
+</tbody>
+</table>
+<p><b>Crypto: muting is free, and slightly protective.</b> Silencing 12 of 36 votes costs one hundredth of a point of
+Sharpe (1.37 vs 1.38) and makes the worst drawdown about <b>4 points shallower</b> (&minus;34.5% vs &minus;38.5%). The matrix is
+redundant — 36 overlapping matchups over 9 assets — so the information a muted vote carried is largely recoverable from
+the surviving ones. Given the choice between "an uncertified committee votes with real money for free" and "it stays
+silent for free", silence wins.</p>
+<p><b>Stocks: muting measurably hurts.</b> The stock tournament has only ~15 matchups and allocates winner-takes-all, so
+every vote is load-bearing: zeroing the 4 refused votes (MUDELTA, NVDADELTA, SMSUNGDELTA, TSLANVDA) drops the OOS Sharpe
+from 2.02 to 1.91 and <em>deepens</em> the worst drawdown from &minus;39% to &minus;48%. The sparse tournament cannot afford
+ties — a tie there is not neutrality, it is a ranking starved of its tiebreaker. So the stocks sleeve keeps its refused
+incumbents voting, and the panes carry the red warning instead.</p>
+<div class="note tiny">The dashboard states the policy in plain language on the pane itself: a muted pair shows a dark
+"&#9888; VOTE MUTED — no reliable signal" badge (the chart stays, for reference only); an unmuted refused pair shows the red
+"&#9888; NOT REBUILT — OLD SIGNAL KEPT" badge. A refusal is impossible to mistake for a certification in either sleeve.</div>
+
+<h3 id="mute-rejected">Two alternatives, tested and rejected</h3>
+<div class="aff"><div class="d">REJECTED &middot; 2026-07-15</div><h4>Bigger committees (7 seats) do not heal the dead-slice failure — they just fit harder.</h4>
+  <p class="tiny" style="margin:0">Hypothesis: with more seats a committee could hold era-diverse voters and survive the
+  quarter that kills it. Measured (prototype, nothing written): the refused pairs <b>stayed refused at every size from 7
+  down to 3</b> (SOLBTC, DOGEBTC, ETHBTC; TSLANVDA only produced another FRAGILE 3-seat) — and, decisively, both healthy
+  controls got <b>worse</b> at 7 seats: SOLETH's time-consistency spread (worst-metric CoV across history slices) degraded
+  from 0.56 to 0.79 while its selection-over-noise excess (the tuned Sharpe minus the expected best of N zero-skill
+  draws, &sect;14b) fell from 0.55 to 0.38; PAXGDOGE likewise 0.52 &rarr; 0.64 and 0.36 &rarr; 0.22. A seventh seat buys a
+  bigger curve-fitting machine, not a second era. The committee cap stays at 5.</p></div>
+<div class="aff"><div class="d">REJECTED &middot; 2026-07-15</div><h4>Hurst-based triage — muting every "non-trending" cross craters the portfolio.</h4>
+  <p class="tiny" style="margin:0">Hypothesis: mute by asset physics instead of by refusal — silence every cross whose
+  ratio is not statistically trend-friendly (the pane's advisory trendiness diagnostic: Hurst exponent of log-price
+  &ge; 0.55 = trending). That rule mutes 22 of the 36 crypto votes, and the rotation collapses: OOS Sharpe
+  <b>1.38 &rarr; 0.83</b>, yearly growth (CAGR) +83% &rarr; +32%, total return +365% &rarr; +103%, while the drawdown barely improves
+  (&minus;38.5% &rarr; &minus;36.9%). The muted set even contains operator-rated-GOOD panes — SOLETH itself is labelled
+  non-trending. The trendiness of the <em>ratio</em> does not predict the usefulness of the committee's <em>vote</em>; the
+  correct triage key is the refusal list — can a gate-passing committee be <b>built</b> on this cross? — not a statistic of
+  the underlying series.</p></div>
+
+<div class="note">Scope, stated once: the mute is a <b>deployment-layer</b> policy on the vote. It never touches
+generation, verdicts, or any statistic in this document — a muted pair's incumbent report stays exactly as the gates left
+it, and the moment a regeneration produces a passing committee the pair votes again.</div>
+
+<!-- ============================ 12c ============================ -->
+<h2 class="section" id="derived-votes"><span class="n">12c</span>Derived votes through the PAXG hub — vote algebra for the muted matchups</h2>
+
+<p>The mute policy (§12b) is honest but leaves a hole: with 10 of the 36 crypto matchups declared ties, the tournament
+ranks the assets on less information. This section describes how a muted matchup gets its ranking vote back
+<b>without building any new strategy</b> — by deriving it, with plain algebra, from two committees that already exist
+and already passed every gate.</p>
+
+<h3>The idea in one line</h3>
+<p>A ratio of ratios cancels: <span class="mono">ETH/BTC&nbsp;=&nbsp;(ETH/PAXG)&nbsp;&divide;&nbsp;(BTC/PAXG)</span>.
+So if the system cannot build a trustworthy committee <em>directly</em> on ETH/BTC (its only profitable era in the
+sample was 2021 — a one-era edge every gate correctly refuses), it can still answer the only question the tournament
+actually asks — <em>"is ETH stronger than BTC right now?"</em> — by comparing two signals it <b>does</b> trust:
+ETH-versus-gold and BTC-versus-gold. Both are certified-stable committees (§4 tiers). The derived vote is simply</p>
+<div class="formula">derived&nbsp;vote(A/B) &nbsp;=&nbsp; &frac12; &middot; ( strength(A vs PAXG) &minus; strength(B vs PAXG) ), &nbsp; clipped to [&minus;1, +1]</div>
+<p class="tiny muted">Orientation is corrected automatically (a PAXG/BTC committee speaks about gold-vs-bitcoin; its sign is
+flipped to read bitcoin-vs-gold). Both legs must be active, certified-stable committees: a muted hub leg can never power a
+derived vote — in that case the matchup stays a tie.</p>
+
+<h3>Why this adds no curve-fitting risk</h3>
+<ul>
+<li><b>Zero new parameters.</b> Nothing is tuned, searched, or selected: the derived vote is a fixed function of two
+existing signals. There is no way for it to "overfit" — it has no degrees of freedom of its own.</li>
+<li><b>Stability is inherited, not claimed.</b> Every input is a committee that passed the full ladder (time-coherence,
+the six stability axes, the tier gates). A difference of two stable signals moves as slowly as its parents.</li>
+<li><b>Complete coverage by construction.</b> Every crypto major has an active, certified-stable PAXG pair in the book —
+gold is the natural hub because gold-crosses are the most stable committees we have (7 of the 8 PAXG pairs are
+STABLE-ROBUST). The stocks analogue (MSTR hub) exists but is <b>rejected</b> — see the measurement.</li>
+<li><b>Declared, not hidden.</b> A pair voting through the hub carries a visible "◈ VOTE DERIVED — via the PAXG hub"
+badge on its pane, and the whole mechanism is a labelled switch on the Overview panel (crypto ON / stocks permanently
+OFF), persisted with Save Settings, so the active policy is always one glance away.</li>
+</ul>
+
+<h3>Measured, both directions (net of fees, out-of-sample 2024&rarr;2026)</h3>
+<table>
+<tr><th>sleeve</th><th>muted ties (baseline)</th><th>derived votes</th><th>verdict</th></tr>
+<tr><td>crypto (36 votes, 10 muted)</td><td>Sharpe 1.61 &middot; +101%/yr &middot; maxDD &minus;33.8%</td>
+<td>Sharpe <b>1.72</b> &middot; <b>+115%/yr</b> &middot; maxDD <b>&minus;39.2%</b></td>
+<td><b>ADOPTED</b> — better return per unit of risk; the price is a ~5.5pp deeper drawdown (participating in those
+matchups instead of sitting them out)</td></tr>
+<tr><td>stocks (15 votes, 4 flagged)</td><td>Sharpe 2.41 &middot; +301%/yr &middot; &minus;30.4%</td>
+<td>Sharpe 2.24 &middot; +258%/yr &middot; &minus;30.4%</td>
+<td><b>REJECTED</b> — in the sparse stock tournament the flagged incumbents' direct votes carry more ordering
+information than the hub algebra; stocks stay as they are</td></tr>
+</table>
+
+<h3>What we risk WITHOUT derived votes — and what we risk with them</h3>
+<ul>
+<li><b>Without (muted ties):</b> the ranking is blind exactly where the market decides regimes. All four
+everything-versus-BTC crosses are muted, so in a bitcoin-dominance phase the tournament cannot see "BTC beats every
+alt" through the direct matchups — a structural, regime-dependent blind spot. Its measured cost on this window:
+~14 points of yearly growth and ~0.11 of Sharpe left on the table. The compensation: the shallowest drawdown of any
+configuration.</li>
+<li><b>With (derived votes):</b> a ~5.5pp deeper drawdown, and a new <b>concentration risk</b> — all ten derived votes
+lean on the PAXG committees, so a degradation of the gold-cross book would degrade ten votes at once. Mitigations:
+the PAXG committees are the strongest tier in the book, the forward-decay monitor watches them live, and the switch
+turns the whole mechanism off in one click.</li>
+</ul>
+<p class="tiny muted">Honesty note: both readings come from the same 2024&rarr;2026 window every book has been measured
+on; treat them as calibrated estimates, not guarantees. A derived vote is an <em>ordering signal built from certified
+components</em> — it is not itself a certified strategy, and it is never counted as one anywhere in this document.</p>
 
 <!-- ============================ 13 ============================ -->
 <h2 class="section" id="decisions"><span class="n">13</span>Affirmed decisions — the theory we committed to</h2>
@@ -1459,11 +2165,554 @@ capital gate.</p>
   the asset ceiling; the real lever is portfolio construction on the rotation.</p></div>
 <div class="aff"><div class="d">AFFIRMED &middot; 2026-07</div><h4>Annualization is asset-class-aware (crypto 365 / stock 252).</h4>
   <p class="tiny" style="margin:0">Removes a spurious ~1.20&times; Sharpe/Sortino credit on the stock sleeve. Re-scoring the 16 stock TPIs produced zero verdict flips — a
-  units fix, not a re-labelling.</p></div>
+  units fix, not a re-labelling. Threaded explicitly as <code>periods_per_year</code> (thread-local ambient fallback for generation).</p></div>
+<div class="aff"><div class="d">AFFIRMED &middot; 2026-07</div><h4>Transaction costs are modeled at the portfolio layer; TPI verdicts stay gross.</h4>
+  <p class="tiny" style="margin:0">A toggleable venue-aware fee model (Bybit spot / IBKR tiered with sell-side taxes; <code>config.FEES_ENABLED</code>, default off) nets the
+  rotation equity and both OOS evaluators through one shared accounting core. The per-pair FEP floors remain gross-of-cost <em>by construction</em>
+  (a TPI is a vote, not a book); net-of-verdict is deferred (Tier-1.1). Rationale &amp; measured impact in &sect;7b · Transaction costs.</p></div>
+<div class="aff"><div class="d">AFFIRMED &middot; 2026-07</div><h4>Every newly generated TPI carries a lockbox holdout and a trial ledger — both report-only.</h4>
+  <p class="tiny" style="margin:0">The lockbox reserves the final ~6 months as data the whole pipeline is structurally blind to; the ledger records every
+  parameter configuration the search drew and prices the winner against the Bailey&ndash;LdP expected-max-of-noise null and the SRIC fitting-cost bound.
+  Neither feeds any verdict, gate, selection key or ship decision — they exist so the honesty of a verdict can be <em>audited</em>, never so the
+  optimizer can chase them. Mechanics in &sect;14.</p></div>
+<div class="aff"><div class="d">AFFIRMED &middot; 2026-07</div><h4>Hysteresis (a Schmitt deadband) is a macro-gate tool only &mdash; it never enters the pair generation objective.</h4>
+  <p class="tiny" style="margin:0">A deadband earns its keep exactly when a near-zero composite is <em>noise</em>. For the four macro gates (QQQ, TOTALES, OTHERS.D, PAXG) the
+  near-zero region is genuine risk-on/off ambiguity, so the deadband deletes cost-only whipsaw almost for free &mdash; they are generated
+  hysteresis-native (<code>MACRO_GATE_HYSTERESIS</code>, <code>_discretize</code>&rarr;<code>_schmitt</code>). For a <b>pair</b>, near-zero is not noise but a real
+  re-ranking of time-coherent children, so a deadband there <em>lags</em> the signal. Two report-only studies close the question from both
+  directions: applied <em>after</em> generation, a deadband on the existing pairs is a net loss and any &theta;&lt;0.2 is a literal no-op because the
+  committee vote is quantized in ~0.2 steps (<code>HYST_ALL_TPIS_2026-07-13</code>); built <em>into</em> generation on 12 pairs spanning the distribution,
+  it yields <b>zero clean wins</b> &mdash; because optimizing <em>for</em> the deadband relaxes the coherence pressure, so the search drifts to
+  whippier, higher-CoV, less-coherent committees (coherence falls, worst-metric CoV rises on every deployable pair), which then die at the
+  untouched CoV cap or deploy less robust (<code>HYST_PAIRS_OPT_2026-07-13</code>). The pairs are already de-noised the right way &mdash; structurally,
+  at generation, via the cadence and CoV gates &mdash; not by a deadband on a ranking signal.</p></div>
 <div class="aff"><div class="d">OPEN &middot; flagged 2026-07</div><h4>SMSUNGSKHYNIX carries a hand-forced verdict.</h4>
   <p class="tiny" style="margin:0">Its stored FRAGILE is internally contradictory (<code>trades_ok=True</code> yet reason "too few trades (preserved)") and is not
   reproducible by the current <code>fep_verdict</code> (which would call it BORDERLINE). Preserved untouched pending a conscious decision;
   it should be regenerated cleanly rather than patched.</p></div>
+
+<!-- ============================ 14 — CLEAN EVIDENCE ============================ -->
+<h2 class="section" id="evidence"><span class="n">14</span>Clean evidence — the lockbox, the trial ledger, and what a verdict may claim</h2>
+
+<p>The 2026-07-08 assessment's <b>P2</b> finding was blunt: every performance number the system produced was, to an unknown degree, a
+<em>selection</em> statistic. The labelled "OOS" window overlapped the TPIs' own training spans, candidate selection touched held-out data in
+three places, and the search evaluated thousands of parameter configurations per TPI with <b>no record of how many things were tried</b>.
+Classic ML pipelines solve this with a <em>test set</em> nothing may touch and an <em>experiment log</em>; the RSPS analogues are the
+<b>lockbox holdout</b> and the <b>trial ledger</b> (assessment fixes 1.2 / 1.3, shipped 2026-07-11). Both are <b>report-only by design</b>:
+the moment either fed a gate or a selection key it would become one more thing the optimizer overfits — Goodhart's law is the failure mode
+this section exists to prevent.</p>
+
+<h3 id="evidence-lockbox">14a &middot; The lockbox holdout — data the pipeline cannot see</h3>
+<p>At generation time the final <code>LOCKBOX_MONTHS = 6</code> of history are cut off <em>at the data-fetch boundary</em>
+(<code>tpi_autogen._lockbox_holdout</code>, truncation inside <code>_fetch_basket</code>). Because the truncation happens before anything else
+runs, every downstream stage is <b>structurally blind</b> to that window — the solo screen, the beam search, Optuna tuning, the candidate
+ranking, the flat-child filter, the walk-forward folds, and the final pick <em>cannot</em> read it even by accident. This is stronger than a
+promise not to look; the data simply is not there.</p>
+<p>After the winner is chosen — and only then — the pipeline evaluates it <b>exactly once</b> on the reserved window and writes a
+<b>write-once</b> holdout block into the robustness JSON: the edge floors cleared on genuinely unseen data, the trade count, and the regime
+context. That number is the only per-TPI statistic in the system that is free of selection bias at birth.</p>
+<ul>
+  <li><b>What it never touches:</b> the FEP verdict, <code>_stable</code>, <code>_perf_rank</code>, <code>ship_ok</code>, the selection sort.
+  A TPI cannot be chosen <em>because</em> its lockbox looks good — that would silently convert the test set into a validation set.</li>
+  <li><b>Exemptions:</b> assets with &lt; <code>LOCKBOX_MIN_HISTORY_YEARS = 2</code> of history, and mixed-maturity baskets whose
+  <em>shortest</em> member is too young (truncating would starve tuning). <code>LOCKBOX_MONTHS = 0</code> disables the mechanism.</li>
+  <li><b>Cost:</b> newly generated TPIs tune on data ending ~6 months ago. That is the price of owning a test set.</li>
+  <li><b>Honest limitation:</b> at ~12&ndash;20 trades/yr, a 6-month lockbox holds only a handful of trades — it can <em>screen</em> a TPI for
+  gross overfit at birth, but it cannot <em>certify</em> an edge by itself. Certification power lives at the portfolio level and in the
+  forward channels below.</li>
+</ul>
+
+<h3 id="evidence-ledger">14b &middot; The trial ledger — counting what the search tried</h3>
+<p>The false-strategy theorem (&sect;M3) says the two sufficient statistics of a backtest audit are <em>how many things were tried</em> and
+<em>how much their Sharpes varied</em> — try enough noise and the best draw looks like an edge. The generator now records exactly that:
+a thread-local ledger counts every stage of the search and is snapshotted into each new robustness JSON as <code>_trial_ledger</code>:</p>
+<ul>
+  <li><b>Provenance:</b> <code>seed</code>, <code>budget</code>, <code>sizes_tried</code>, <code>combos_tuned</code>, per-stage
+  <code>optuna_trials</code> (screen / tune / walk-forward) and raw <code>evaluations</code> counts.</li>
+  <li><b><code>selection_trials_n</code></b> — the honest <em>N</em>: every parameter configuration the search <em>drew while hunting the
+  winner</em> (solo screens + combo tuning + beam combo scores). Walk-forward re-optimizations and MC/sweep evaluations are recorded but
+  excluded from N — they refit or diagnose an already-chosen combo, they are not draws against the null.</li>
+  <li><b><code>expected_max_sr_null</code></b> — the Bailey&ndash;L&oacute;pez de Prado expected best in-sample Sharpe of
+  <code>selection_trials_n</code> zero-skill trials, using the <em>empirical</em> cross-trial Sharpe dispersion (<code>sr_trials.std</code>)
+  actually observed during the search — not a distributional assumption. <b><code>sr_excess_over_null</code></b> is the headline:
+  the tuned in-sample Sharpe minus that null. Positive by a clear margin &rArr; the edge exceeds what selection over noise explains;
+  &le; 0 &rArr; the number is indistinguishable from picking the best of N noise draws.</li>
+  <li><b><code>sric</code></b> — the Paulsen&ndash;S&ouml;hl Sharpe Information Criterion (k tuned parameters, T years): the
+  <em>within-trial</em> optimization-bias bound, complementing the <em>across-trial</em> null above. Neither alone captures total overfit;
+  both point the same direction.</li>
+  <li><b>Report-only, enforced:</b> nothing reads the ledger back — no verdict, gate, selection key or ship decision consumes it
+  (<code>tpi_autogen.py</code> ledger block). Thread-local so dashboard display evaluations never contaminate a generation's counts.</li>
+</ul>
+<div class="note">Why the retro-fitted numbers were only estimates: the pre-ledger book (everything generated before 2026-07-11) has no
+recorded N or cross-trial dispersion, so the Phase-A probe (<code>reports/TPI_HONESTY_2026-07-11.html</code>) had to bracket N at 30&ndash;120
+and assume a &radic;(P/T) null dispersion. Its conclusion — 52/55 trade-starved, 31&ndash;46/55 within selection-over-noise at the honest
+budget — is the case for regenerating <em>under</em> the ledger, where these numbers become exact instead of estimated.</div>
+
+<h3 id="evidence-channels">14c &middot; How the pieces compose — birth, life, and what may be claimed</h3>
+<p>Three evidence channels answer different questions at different times, forming the standard
+train &rarr; validation &rarr; <b>test</b> &rarr; <b>live monitoring</b> pipeline:</p>
+<table>
+<thead><tr><th>Channel</th><th>Question</th><th>Clean because&hellip;</th></tr></thead>
+<tbody>
+<tr><td><b>Lockbox holdout</b> (per TPI, at birth)</td><td>was this TPI overfit the day it was made?</td><td>the pipeline is structurally blind to the window; measured write-once</td></tr>
+<tr><td><b>Per-TPI forward test</b> (PSR + Sortino haircut)</td><td>is this TPI still working?</td><td>post-<code>generated_at</code> data did not exist at generation — uncheatable; thin (~12&ndash;20 trades/yr), so slow</td></tr>
+<tr><td><b>Portfolio forward</b> (<code>__crypto_portfolio__</code>)</td><td>is the <em>rotation</em> still working?</td><td>same uncheatable basis, but ~50 one-way trades/yr &rarr; far more statistical power; freeze = max <code>generated_at</code> across the book, so regenerating <em>any</em> TPI restarts the clock</td></tr>
+</tbody>
+</table>
+<p>The honest claim hierarchy this enforces: an in-sample Sharpe is a <em>selection</em> statistic (read it against the ledger's null); a
+lockbox pass is <em>one</em> unbiased observation (screening, not certification); only the forward channels — above all the portfolio one —
+accumulate evidence that can genuinely certify. And per &sect;7b, all three channels are currently <b>gross of cost</b>; the net-of-cost
+verdict layer is the open Tier-1.1 track.</p>
+<div class="note tiny">Full design rationale and the FRAGILE deployability policy that accompanies these channels:
+<code>research/robustness/06_clean_evidence_channels.md</code>. Decay monitoring is detect-only with manual Regenerate / Keep / Revert —
+a false decay alarm must never silently reset a clean forward clock.</div>
+
+<h2 class="section" id="structure"><span class="n">15</span>Structural acceptability — time-coherence gates, upstream of every verdict</h2>
+<p><b>Why this layer exists (2026-07, the net-regen lesson):</b> the verdict LABELS quality but never refused a candidate — a TPI with a
+112% parameter-CoV shipped as FRAGILE and kept voting; committees mixing quasi-static children (1–3 flips/yr) with whippy ones (16–18
+flips/yr) passed every metric while dithering across the zero line a third of their lives. With ~40–90 trades per TPI the statistical
+gates are <em>low-power</em>: they cannot alone distinguish a well-built machine from a lucky noisy one. Structure must come first —
+it shrinks the hypothesis space so the statistics of &sect;1–&sect;14 are computed over sanely-built candidates only (and the trial
+ledger's selection null tightens for free, because N falls).</p>
+<p><b>The gates, in generation order</b> (config <code>CADENCE_GATES_ENABLED</code>; thresholds in
+<code>fep_robustness.CADENCE_V2</code>, calibrated on the live ETHBTC committee — the operator's reference for acceptable
+time-coherence):</p>
+<table>
+<tr><th>Layer</th><th>Rule</th><th>Action</th></tr>
+<tr><td>Solo pool screen</td><td>an indicator whose solo-tuned signal on THIS asset has p25 run &lt; 3 bars or &gt;5% of time in
+runs &lt; 5 bars (a "barcode" voter, e.g. Decycler on the NVDA pairs)</td><td>excluded from the asset's pool before any committee is
+formed</td></tr>
+<tr><td>Composite cadence (HARD)</td><td>the committee's traded line must hold: p25 dwell &ge; 8 bars &middot; dither
+(|TPI| &le; 0.25 occupancy) &le; 20% &middot; &le; 5 sign flips in ANY 30-day window (burst-aware — window maxima, not averages)</td>
+<td>candidate REJECTED at beam, inside the tuning objective, and post-tune; if every candidate fails, generation fails honestly and
+the incumbent TPI stays</td></tr>
+<tr><td>Child tempo (SOFT)</td><td>members outside the 5–16 flips/yr tempo band, with p25 run &lt; 6 bars, &gt;2% burst-time, or
+&gt; 6 flips/30d</td><td>multiplicative score penalty (&times;0.85–0.90 per violation, floor 0.4) — steers the search without
+strangling it; a calm composite may legitimately carry one imperfect member</td></tr>
+<tr><td>Committee size</td><td>&ge; 3 children</td><td>2-voter committees (mean &isin; {−1,0,+1}, perpetual no-man's-land) cannot
+ship</td></tr>
+<tr><td>Net-of-cost scoring</td><td><code>NET_VERDICTS_ENABLED</code>: every search evaluation charged venue+leg-aware bps per
+position flip</td><td>whipsaw pays its own fee bill inside the objective</td></tr>
+<tr><td>Macro-gate hysteresis</td><td>sleeve gates (TOTALES / OTHERS.D / QQQ / PAXG) are generated AND consumed through a symmetric
+&plusmn;0.2 Schmitt trigger: risk-on only above +&theta;, risk-off only below &minus;&theta;, HOLD between (causal — cannot
+repaint)</td><td>zero-line whipsaw on whole-sleeve switches is structurally impossible; the verdict certifies the signal production
+actually trades</td></tr>
+</table>
+<p><b>The honest trade-off, stated once:</b> coherent committees trade less, so trade-hungry certifications (conditional WFE,
+MC at low N) more often return "insufficient evidence" — calm machines certify <em>slowly</em>. That is the stamp telling the truth,
+not a defect; the lockbox and forward channels (&sect;14) are the designated tiebreakers. The dashboard's robustness table carries
+this layer in its legend and separates the calls: <b>Verdict</b> (edge + evidence), <b>Stable</b> (the six hard axes, time-consistency included since 2026-07-14), with the
+structural gates guaranteeing both are computed on committees worth judging.</p>
+
+<!-- ============================ LOG — JULY 2026 CAMPAIGN CHANGELOG ============================ -->
+<h2 class="section" id="voting"><span class="n">12d</span>When does a pair vote? — the conditions, in plain terms</h2>
+
+<p>The rotation is a round-robin: every pair of assets is <b>one match</b> (9 crypto majors &rarr; 36 matches), and the
+pair's committee decides who wins it. Win more matches, get more weight. So "does this pair vote?" is the same question
+as "is this match played?".</p>
+
+<h3>The four conditions</h3>
+<ol>
+<li><b>A committee exists</b> for that pair — it was generated and is in the shipped book.</li>
+<li><b>The pair is not muted</b> — the latest regeneration managed to build a committee that clears the gates. If it
+<em>refused</em> (no candidate passed stability / time-coherence, even at the smallest committee size), the pair is
+recorded in <code>incoherent_pairs.json</code> and its vote is neutralized.</li>
+<li><b>Both legs have data at that moment</b> — HYPE simply did not exist before November 2024, so every HYPE match
+before then is unplayed, not lost.</li>
+<li><b>The signal is usable</b> — not a missing value. Since the 2026-07 audit this fails <em>closed</em> and visibly;
+before, a missing value silently became a phantom win for whichever asset was listed first.</li>
+</ol>
+
+<h3>A match not played is NOT a draw</h3>
+<p>This distinction is load-bearing and was fixed in the audit. An unplayed match awards <b>no points</b> and also
+<b>leaves the denominator</b>: each asset is ranked on its <b>win rate over the matches it actually played</b>, never on
+raw win counts. Otherwise an asset that plays 8 matches and wins 4 would out-rank one that plays 3 and wins all 3 —
+rewarding volume instead of skill. An asset that played <em>no</em> match cannot be ranked at all, which is also why a
+not-yet-listed asset can never be handed the "worst asset" slot in the 80&#8209;20 mode: a position in something that
+does not exist yet is not a position.</p>
+
+<h3>What happens to a muted vote, per sleeve</h3>
+<p><b>Crypto</b> &mdash; the vote is not simply dropped: it is <b>derived through the PAXG hub</b> (&sect;12c), rebuilt
+with plain algebra from the two legs' certified-stable gold committees. Only if a hub leg is unusable does the match go
+unplayed. <b>Stocks</b> &mdash; the incumbent keeps voting, flagged red on the dashboard, because muting was
+<em>measured</em> harmful there: the stock tournament is sparse and winner-takes-all, so every vote is load-bearing
+(Sharpe 2.02 &rarr; 1.91 when muted). Both directions were measured; neither was chosen by taste.</p>
+
+<p class="note"><b>Why any of this exists.</b> A committee that failed the gates has no demonstrated edge. Letting it
+vote because "something must be said" is precisely how an unstable signal moves real money. Today 17 of 55 pairs are in
+that state &mdash; and the portfolio decomposition (&sect;17) shows the rotation still earns in <em>all four</em> eras,
+because the tournament is redundant and the mutes are honest.</p>
+
+<h2 class="section" id="search-settled"><span class="n">16</span>What the search can and cannot do — the tuning question, settled</h2>
+
+<p>After the July audit the operator asked the right question: <em>if so many pairs refuse, are the constraints simply
+too strict — and can we tune the search to produce more stable, more robust committees?</em> That question was tested
+to destruction over four experiments. The answer is unambiguous, and it saves anyone from re-running the search-tuning
+program in future.</p>
+
+<h3>The four experiments</h3>
+<table>
+<thead><tr><th>Experiment</th><th>What it changed</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td><b>E1 &mdash; more candidates</b></td>
+  <td>Close-only indicator pool 15 &rarr; 34, after every newcomer passed an admission exam (causality, warm-up
+  fabrication, reachability, dead parameters, bounds hygiene, data class).</td>
+  <td>Committees got <em>stabler</em> (BNBXRP time-consistency 0.82 &rarr; 0.27) and the new indicators were picked by
+  4 of 4 rebuilt committees &mdash; but <b>zero verdicts moved</b>, and all four refusing pairs refused again.</td></tr>
+<tr><td><b>E7 &mdash; steer toward era-robustness</b></td>
+  <td>Put the strategy's worst era into the tuning objective, so the optimizer would climb toward the consistency the
+  time gate demands instead of climbing one-era edge and dying at the gate.</td>
+  <td><b>Rejected.</b> It flipped one refuser to "builds" &mdash; and that build was overfit to the exact 4-slice
+  partition it optimized: it passes at 4 and 5 slices, has a <em>dead era</em> at 6, and loses on the lockbox. The
+  search had optimized the very metric the gate certifies on &mdash; the audit's own worst finding, one floor up.</td></tr>
+<tr><td><b>E8 &mdash; the sensitivity matrix</b></td>
+  <td>Seven settings &times; five hard pairs, one term at a time: cadence relaxed / off, coherence weaker / stronger,
+  COBRA nudge off, turnover-coherence weaker.</td>
+  <td>Labelled yield <em>does</em> respond &mdash; turning cadence off halves it, and the current settings are already
+  at the maximum. But <b>true robustness (lockbox) is 1 in 5 in every single row, and always the same pair</b>. Settings
+  reshuffle which pairs get the STABLE&#8209;ROBUST label; they never change who is actually robust.</td></tr>
+<tr><td><b>D14 &mdash; is there an in-sample tell?</b></td>
+  <td>Correlate each committee's era-spread measured in-sample against its era-spread on the full window.</td>
+  <td>Correlation &asymp; <b>0.00</b>. There is no honest in-sample signal a selection rule could use: era-robustness
+  only reveals itself out-of-sample.</td></tr>
+</tbody>
+</table>
+
+<h3>What it means</h3>
+<p><b>Robustness lives in the pair, not in the search.</b> Gold-versus-meme holds up under every setting; alt-versus-alt
+and alt-versus-BTC hold up under none. The optimizer is already well-calibrated &mdash; every variation either matched
+the baseline or made things worse &mdash; and no re-weighting manufactures an edge that the ratio does not have. Two
+practical consequences:</p>
+<ul>
+<li><b>Cadence earns its cost.</b> The search spends 99.9% of its rejections satisfying cadence, which looked wasteful.
+Removing it <em>halves</em> the yield: without it the search wanders into whippy regions that then fail the time and
+significance gates. It is not overhead, it is what keeps the search in a sane neighbourhood.</li>
+<li><b>Never steer toward a gate.</b> Certification must rest on evidence the objective cannot see &mdash; the untouched
+lockbox and the luck benchmark (&sect;14). Anything the search can optimize, it will, and then the gate stops being
+evidence.</li>
+</ul>
+
+<h3>The acceptance posture that follows</h3>
+<p>Stated by the operator and now the written policy: <b>first look for a solution that is robust <em>and</em>
+time-coherent; if none exists, take one that is stable <em>and</em> time-coherent, maximizing robustness within that.</b>
+The order is safe because it is nested &mdash; robust is a subset of stable, which is a subset of time-coherent &mdash;
+so preferring the robust one never trades away stability. And "look for robust" must always mean <em>search broadly and
+certify honestly</em>, never <em>steer the objective at the robustness metric</em> (E7).</p>
+
+<h3>16b · The two jobs the word "robustness" does — and which one D16 tested</h3>
+
+<p class="note"><b>Read this before quoting D16.</b> "Robustness" covers <b>two different jobs</b> in
+this system. Mixing them up turns a narrow, useful result into a false alarm about the whole
+assessment method. It is the single easiest misreading to make here, so it is written down.</p>
+
+<table>
+<thead><tr><th></th><th>Job A — the admission exam</th><th>Job B — ranking among the admitted</th></tr></thead>
+<tbody>
+<tr><td><b>The question</b></td>
+  <td>Is this committee trustworthy <em>at all</em>?</td>
+  <td>Among committees that already passed A, do the higher-tier ones win more matches?</td></tr>
+<tr><td><b>What it decides</b></td>
+  <td><b>Ship it, or refuse it and mute the vote</b></td>
+  <td>Whether to weight votes by tier inside the tournament</td></tr>
+<tr><td><b>What it compares</b></td>
+  <td>passed the gates vs failed them</td>
+  <td>ROBUST vs EDGE vs THIN — <b>all of which already passed</b></td></tr>
+<tr><td><b>Status</b></td>
+  <td><b>Validated, unchanged, not on trial in D16</b></td>
+  <td><b>Tested in D16 — no signal on that window</b></td></tr>
+</tbody>
+</table>
+
+<p><b>D16 never pitted an admitted committee against a refused one.</b> Every committee in every
+scenario had already cleared the admission exam. <span class="mono">STABLE-THIN</span> does not mean
+"bad" — it means "passed, with a thinner measured edge than <span class="mono">STABLE-ROBUST</span>".
+So the comparison was <b>"very good versus good enough"</b>, never "good versus bad".</p>
+
+<p><b>What follows, concretely:</b></p>
+<ul>
+<li><b>The pipeline is unchanged.</b> Assess every TPI &rarr; deploy only what passes &rarr;
+mute or derive the rest. Job A is why 17 of 55 pairs are refused today, and nothing in D16
+challenges it.</li>
+<li><b>One idea is parked</b> — the one we had not built yet: giving higher-tier committees
+<em>more voting weight</em> than other already-admitted ones. On the tested window there is no
+evidence to build that from. Re-decided by the forward re-test at +3 / +6 months.</li>
+</ul>
+
+<p><b>Why the two jobs can disagree without either being wrong.</b> The exam asks whether a
+<em>method</em> held up across history, parameter jitter and different eras. A tournament match is
+decided by whether that committee happens to be right <b>on that particular day</b>. A well-vetted
+method and a lucky day are different things — nothing forces them to line up, and on this window
+they did not. That is a statement about the limits of what a historical exam can predict about
+tomorrow's single call, not a verdict on the exam.</p>
+
+<p class="note"><b>The portfolio's real safety net is structural, not per-committee.</b> 36 redundant
+matches, refused votes muted or re-derived through the gold hub, nine assets, two sleeves. That is
+why the rotation earns in all four eras (&sect;17) while 17 of its members individually fail the
+era test. The system was built so that <em>no single committee's verdict is load-bearing</em> —
+which is also why tier gradations among the admitted have little left to move.</p>
+
+<h2 class="section" id="portfolio-robustness"><span class="n">17</span>Robustness at the portfolio level — where it is actually created</h2>
+
+<p>Since no search setting manufactures robustness (&sect;16), the question moves up a level: <b>is the rotation
+robust?</b> &mdash; which was always the more important question than "is SOLDOGE robust?". Here the levers are real,
+because portfolio robustness is not <em>found</em>, it is <b>composed</b>: from who is in the universe, how votes are
+aggregated, when the sleeve goes to cash, and how concentrated the sizing is. Each of those has a measured precedent
+(the SK&nbsp;Hynix&rarr;Delta swap, per-sleeve muting, the PAXG haven, top-3 versus winner-takes-all).</p>
+
+<h3>The v7 decomposition (2026-07-18, net of costs)</h3>
+<table>
+<thead><tr><th>Cell</th><th>Crypto sleeve</th><th>Stocks sleeve</th></tr></thead>
+<tbody>
+<tr><td>Full window</td><td>Sharpe 1.50 &middot; Sortino 3.95</td><td>Sharpe 1.85 &middot; Sortino 3.16</td></tr>
+<tr><td>Era 1 (2020&ndash;21)</td><td>2.28</td><td>2.06</td></tr>
+<tr><td>Era 2 (2021&ndash;23 bear)</td><td>0.94</td><td>0.85</td></tr>
+<tr><td>Era 3 (2023&ndash;24)</td><td>2.01</td><td>2.15</td></tr>
+<tr><td>Era 4 (2024&ndash;26)</td><td>0.82</td><td>2.21</td></tr>
+<tr><td><b>Recent 6-month holdout</b></td><td><b>&minus;0.73</b> (&minus;18%)</td><td><b>+2.35</b> (+80%)</td></tr>
+<tr><td>Weakest member</td><td>HYPE +19.5% over 116 days held</td><td>SMSUNG +7.0% over 24 days held</td></tr>
+</tbody>
+</table>
+
+<h3>What the decomposition says</h3>
+<ul>
+<li><b>No dead era, either sleeve.</b> Every era is positive, including the 2021&ndash;23 bear. The portfolio passes at
+composition level exactly the era-consistency test that 17 of its members fail individually. <b>Diversification and
+honest muting create the robustness that no search setting could.</b></li>
+<li><b>No toxic member.</b> Every asset's cumulative contribution over its holding days is positive &mdash; including
+HYPE and SUI, whose own pairs mostly refuse. The membership lever has nothing to cut.</li>
+<li><b>One weak cell:</b> the crypto sleeve's last six months (&minus;0.73) while stocks made +2.35 in the same window.
+At roughly 51% annual volatility that is about a 1.5-sigma bad half-year &mdash; not proof of breakage &mdash; and
+sleeve diversification did its job: stocks carried while crypto bled.</li>
+</ul>
+
+<p class="note"><b>The discipline on that weak cell.</b> The tempting move &mdash; retune the macro gate or the haven so
+this particular window looks better &mdash; is exactly the defect the audit flagged as its worst class: fitting the
+lever to the window you diagnosed on, which spends the holdout. It is instead filed as a <b>pre-registered forward watch
+item</b>: if the crypto sleeve stays negative while stocks stay positive over the <em>next</em> three-to-six months, the
+gate/haven lever earns a measured A/B on data neither arm has seen. Until then the referee is the forward monitor, and
+nothing is tuned.</p>
+
+<h2 class="section" id="changelog"><span class="n">LOG</span>July 2026 campaign changelog</h2>
+<p>One row per honesty fix, in the order they landed. Dates and hashes are the commit dates on the campaign branch lineage
+(<code>feat/cadence-gates</code> &rarr; <code>feat/mute-refused-votes</code>; the fee and lockbox work merged to
+<code>master</code> first). First-use glosses for this section: walk-forward efficiency (WFE) = does the edge survive
+honest re-optimization; coefficient of variation (CoV) = how much a score scatters, spread divided by mean; Monte-Carlo
+(MC) = survival across shuffled return paths; out-of-sample (OOS) = measured on data the tuning never saw; CAGR =
+compound annual growth rate, the yearly growth pace.</p>
+<table>
+<thead><tr><th>Date</th><th>Change</th><th>Why</th><th>Evidence</th></tr></thead>
+<tbody>
+<tr><td>2026&#8209;07&#8209;17</td>
+  <td><b>Trade floor made proportional to each ratio's own history</b> (was a flat 35 above ~3 years), with the
+  long-only halving corrected: a long-only book books about <em>half</em> the trades of the long/short strategies the
+  bar was inherited from (measured 2.0&times;).</td>
+  <td>A 6.5-year ratio and a 1.5-year one were held to the same bar, and the bar compared a raw-signal expectation
+  against a long-only count.</td>
+  <td><code>b0cde34</code>; D8/D10. Measured effect: one pair changes trade status, already refused &mdash; zero live
+  verdicts move. A correctness fix, not a results lever.</td></tr>
+<tr><td>2026&#8209;07&#8209;17</td>
+  <td><b>The lockbox can now certify ROBUST at low trade counts</b> (<code>LOCKBOX_CERTIFIES_ROBUST</code>): a committee
+  capped only because walk-forward could not certify is promoted when the untouched holdout shows a real edge <em>and</em>
+  it beats the luck benchmark.</td>
+  <td>Walk-forward needs ~30 out-of-sample trades; a slow long-only strategy books a median of 5, so ROBUST was
+  arithmetically unreachable for the whole book.</td>
+  <td><code>6ec0a3f</code>; &sect;14, D13. First ROBUST in the book (BNBETH: holdout Sharpe +1.65, luck margin +0.017).
+  The census also showed only <b>1 of 55</b> committees was gated by the measuring stick &mdash; the other 54 fail on
+  substance.</td></tr>
+<tr><td>2026&#8209;07&#8209;17</td>
+  <td><b>Deployability now means "not unstable" on every axis.</b> The ship test checked only walk-forward, parameter
+  scatter and time-consistency; the tier ladder called a committee unstable on four more (significance, coherence,
+  turnover, cross-asset).</td>
+  <td>The two definitions disagreed, so a committee whose edge is indistinguishable from a random shuffle was shipped
+  and voted with real money (QQQ, SUIDOGE).</td>
+  <td><code>3d792c1</code>. Verified: both now hold; the genuinely stable ones still deploy.</td></tr>
+<tr><td>2026&#8209;07&#8209;18</td>
+  <td><b>Search-tuning program closed by measurement</b> (&sect;16), and robustness work moved to the portfolio level
+  (&sect;17).</td>
+  <td>Four experiments converge: more candidates changed no verdict, steering the objective at the gate produced an
+  overfit false positive, the sensitivity matrix left true robustness at 1-in-5 in every setting, and in-sample
+  era-spread predicts nothing.</td>
+  <td><code>26415b5</code>, <code>5fdc8c1</code>; <code>SEARCH_TUNING_2026-07-17.md</code> (D1&ndash;D15),
+  <code>PORTFOLIO_DECOMP_2026-07-18.md</code>. The rotation has no dead era and no toxic member.</td></tr>
+<tr><td>2026&#8209;07&#8209;10</td>
+  <td><b>Venue-aware fee model</b>, toggleable (<code>config.FEES_ENABLED</code>): Bybit spot 10 basis points per side
+  + 3 slippage for crypto; Interactive Brokers tiered for stocks, including the Korean 0.20% and Taiwanese 0.30%
+  sell-side taxes (KRX 7/27, TWSE 11/41 basis points buy/sell).</td>
+  <td>Every equity curve was frictionless, so a strategy that flips constantly looked as good as a calm one.</td>
+  <td><code>9a24327</code>; &sect;7b; <code>FEE_MODEL_2026-07-10.md</code>. Measured: fee drag &asymp; 28% of terminal
+  wealth at ~40 one-way turns/yr; the crypto edge survives even 5&times; fees.</td></tr>
+<tr><td>2026&#8209;07&#8209;11</td>
+  <td><b>Lockbox holdout + trial ledger</b>: the final 6 months of history are structurally invisible to the whole
+  pipeline and scored write-once after the pick; every parameter configuration the search draws is counted and the winner
+  priced against the expected best of that many noise draws (the Bailey&ndash;L&oacute;pez de Prado null) and the
+  fitting-cost bound (Sharpe Information Criterion, SRIC).</td>
+  <td>Every reported number was a selection statistic: "out-of-sample" overlapped training spans and nobody counted how
+  many candidates were tried.</td>
+  <td>Merges <code>9e0c7c1</code> + <code>ccb8772</code>; mechanics in &sect;14.</td></tr>
+<tr><td>2026&#8209;07&#8209;11</td>
+  <td><b>Net-of-cost verdicts</b> (<code>NET_VERDICTS_ENABLED = True</code>): the entire generation pipeline — tuning,
+  beam, gates, verdict — scores returns after fees, so whipsaw pays its own fee bill inside the objective.</td>
+  <td>A gross-scored search happily builds committees whose paper edge is smaller than their fee bill.</td>
+  <td>Prototype <code>286b16e</code>, enabled <code>3c31de5</code>.</td></tr>
+<tr><td>2026&#8209;07&#8209;11</td>
+  <td><b>Phase-C net regeneration — adopted and rolled back the same day.</b> The first fully honest book scored
+  0 ROBUST / 51 BORDERLINE / 4 FRAGILE, with 12 of 47 lockbox-eligible committees passing on unseen data; it also shipped
+  a pair with a 112% parameter-CoV and committees that dithered across the zero line.</td>
+  <td>The lesson that reshaped the campaign: labels alone do not protect the book — quality must be <em>refused</em> at
+  generation, not stamped afterwards.</td>
+  <td><code>e94d9b2</code> (adopt), <code>76c7b2b</code> (rollback); <code>REGEN_NET_2026-07-11.html</code>;
+  the "MUDELTA 112% lesson" note in <code>fep_robustness.py</code>.</td></tr>
+<tr><td>2026&#8209;07&#8209;11/12</td>
+  <td><b>Cadence gates + the ETHBTC tempo standard</b>: hard rejection of whippy candidates during the search (composite
+  dwell, flips per year, zero-band dithering), then v2 calibrated on the live ETHBTC committee — a common tempo band for
+  the children, burst-aware run statistics (25th-percentile run length, % of time in runs under 5 bars), and a cap of
+  5 sign flips in any 30-day window.</td>
+  <td>Statistical gates are low-power at ~40&ndash;90 trades; structure must shrink the hypothesis space first. The live
+  QQQ gate is the counter-example the standard rejects.</td>
+  <td><code>592862b</code>, <code>4e7b894</code>; thresholds in <code>fep_robustness.CADENCE_V2</code>; &sect;15.</td></tr>
+<tr><td>2026&#8209;07&#8209;13</td>
+  <td><b>Long-only scoring + halved tempo floor</b>: the certified strategy is the deployed long/flat one — a &minus;1
+  vote means rotate to cash, never short (<code>config.LONG_ONLY_SCORING</code>). With shorts gone, a slow trend voter is
+  legitimate, so the child tempo floor halved 5.0&rarr;2.5 and the composite floor 8.0&rarr;4.0 flips per year, rescuing
+  8 of 9 previously refused pairs.</td>
+  <td>Scoring long/short certified a strategy that never trades; the tempo floor then had to stop punishing patient
+  long/flat committees.</td>
+  <td><code>859d177</code> (floor + rationale), flag single-sourced in <code>3bcacaa</code>.</td></tr>
+<tr><td>2026&#8209;07&#8209;13</td>
+  <td><b>Hysteresis settled as macro-gate-only</b>: a deadband (Schmitt trigger, &theta; = 0.2) stays on the four sleeve
+  gates and never enters pair generation.</td>
+  <td>Proven from both directions: applied after generation it hurts 40 of 51 pairs (median &Delta;Sharpe &minus;0.23);
+  built <em>into</em> generation on 12 pairs it produced zero clean wins, because optimizing for the deadband relaxes
+  coherence pressure and the search drifts whippier.</td>
+  <td><code>53ebfd2</code>, <code>e16ff64</code>; affirmed block in &sect;13;
+  <code>HYST_PAIRS_OPT_2026-07-13</code>.</td></tr>
+<tr><td>2026&#8209;07&#8209;14</td>
+  <td><b>Walk-forward fold-validity guard + 2&times;12-month folds + 3 bug fixes</b>: a fold with fewer than 3 test trades
+  no longer counts (it grades a coin flip); slow committees (under 12 in-sample trades per year) run 2 long ~12-month
+  folds with a 0.65 in-sample fraction so the walk-forward efficiency (WFE) is numeric again. Fixed in the same audit:
+  not-a-number (NaN) fold trade counts silently disabled trade weighting on 24 of 55 pairs, the selection guard
+  <em>inverted</em> on NaN (hard-enforcing the floor on the most starved pairs), and NaN scrambled candidate ordering in
+  <code>_perf_rank</code>.</td>
+  <td>A book replay showed 84% of folds held &le; 2 trades and six zero-trade folds scored a perfect 3.0 — the temporal
+  gate was grading noise.</td>
+  <td><code>384827b</code>, <code>3bcacaa</code> (fold resizing, <code>SLOW_WF_IS_FRAC</code>); guard constants in
+  <code>fep_robustness.py</code>.</td></tr>
+<tr><td>2026&#8209;07&#8209;14</td>
+  <td><b>Beam soft-gate + incumbent seeding</b>: the hard cadence gate at the beam stage becomes a &times;0.30 score
+  discount (tune-stage and final gates stay hard), and the live book's committees are seeded into every joint tune and
+  judged by the same judges — a regeneration can only replace an incumbent by beating it.</td>
+  <td>The ETHBTC replay finding: the beam scores composites of solo-tuned parameters (~2&times; whippier than jointly
+  tuned), so the hard gate zeroed ~99% of beam evaluations and the incumbent's clean committee was unreachable by
+  construction.</td>
+  <td><code>384827b</code> (repair), <code>f2f6b1d</code> (v4 book: 50 built / 5 refused; seeding verified live on
+  ETHBTC).</td></tr>
+<tr><td>2026&#8209;07&#8209;14</td>
+  <td><b>Evidence-weighted low-N rescue</b> (verdict rule R1): a trade-starved committee whose surviving evidence is
+  strong — worst parameter-sweep row &ge; 3/4, out-of-sample edge &ge; 3/4, Monte-Carlo (MC) survival &ge; 0.85, parameter
+  spread stable — reads BORDERLINE (badged low-N) instead of an automatic FRAGILE; never ROBUST.</td>
+  <td>At ~7 flips per year, starvation is physics, not a quality verdict; but the rescue must not launder bad pairs —
+  the out-of-sample edge requirement blocks every operator-rated-BAD pane.</td>
+  <td><code>384827b</code>; simulated on all 55 book files: 12 rescues, 0 rated-BAD pairs upgraded
+  (<code>_verdict_sim.py</code>).</td></tr>
+<tr><td>2026&#8209;07&#8209;14</td>
+  <td><b>Time-consistency gate (TIME) + calibration</b>: the pre-lockbox span is cut into 4 slices and the locked
+  committee re-scored per slice; hard gates on spread (worst-metric CoV across slices &le; 1.10) and on the worst slice
+  (core &ge; 0.05 — one dead slice means one lucky era). Wired as verdict gate, selection reject, and dashboard axis.</td>
+  <td>Temporal robustness had to be as strict as parameter robustness; walk-forward alone was advisory on most slow
+  panes. Calibrated on the operator's pane review: passes 6/6 rated-GOOD, fails 6/6 rated-BAD, including the
+  SOLDOGE twins no stored metric could separate.</td>
+  <td><code>3bcacaa</code>; book relabelled 16 BORDERLINE / 39 FRAGILE (11 demotions) via
+  <code>_retime_book.py</code>.</td></tr>
+<tr><td>2026&#8209;07&#8209;15</td>
+  <td><b>Regeneration v5 — first book selected under the TIME gate</b>: 39 pairs built, 16 honestly refused (no
+  time-consistent committee exists; incumbents kept and flagged); verdicts 22 BORDERLINE / 33 FRAGILE.</td>
+  <td>Rotation out-of-sample 2024&rarr;2026 net of fees: crypto Sharpe 1.38 / +83% / &minus;38% drawdown; stocks 2.02 /
+  +212% / &minus;39%. The commit itself warns: do not shop between book versions on the same window — that is selection
+  over books.</td>
+  <td><code>8733723</code> + <code>5a0d740</code>; refusal list in <code>incoherent_pairs.json</code>.</td></tr>
+<tr><td>2026&#8209;07&#8209;15</td>
+  <td><b>Vote-muting policy, per sleeve</b>: a refused pair casts a zero vote (a tie) instead of letting a stale incumbent
+  vote real money — enabled for crypto, deliberately disabled for stocks
+  (<code>MUTE_REFUSED_VOTES = True</code> / <code>MUTE_REFUSED_VOTES_STOCKS = False</code>).</td>
+  <td>Both directions were measured, net of fees, out-of-sample: crypto muting is free (Sharpe 1.37 vs 1.38, worst
+  drawdown ~4 points shallower) because 36 votes are redundant; stock muting is harmful (2.02&rarr;1.91, drawdown
+  &minus;39&rarr;&minus;48) because in a ~15-vote winner-takes-all tournament every vote is load-bearing. Companion
+  negatives recorded in the same commit: 7-seat committees rejected (refused pairs stay refused, healthy controls got
+  worse), and Hurst-based vote triage refuted (muting "non-trending" crosses craters crypto Sharpe 1.38&rarr;0.83).</td>
+  <td><code>2efc492</code>; <code>_mute.log</code>; policy comment in <code>config.py</code>.</td></tr>
+<tr><td>2026&#8209;07&#8209;16</td>
+  <td><b>Stability-first ladder + lexicographic search + regen v6</b> (operator directive: time-coherence MUST,
+  stability MUST, robustness NICE-TO-HAVE): the tier replaces the edge-dominated verdict as the primary label;
+  in-sample stability probes screen every tuned combo before the finalist choice; the top-k out-of-sample leak fixed.
+  MUSMSUNG (the one unstable-and-voting pair) replaced by a stable committee; final active book 27 STABLE-ROBUST /
+  4 EDGE / 5 THIN / 4 NO-EDGE / <b>0 UNSTABLE</b> (+15 muted/flagged).</td>
+  <td>Rotation out-of-sample, net of fees: stocks Sharpe 2.41 &middot; +301%/yr &middot; maxDD &minus;30.4% — the best of
+  every book measured, ~19pp less drawdown than the pre-campaign live book; crypto 1.70 &middot; +111%/yr.</td>
+  <td>PR #41 (<code>2831dce</code>); §0/§3/§4; <code>_tier_book.py</code>.</td></tr>
+<tr><td>2026&#8209;07&#8209;16</td>
+  <td><b>Derived votes via the PAXG hub</b> — crypto ON, stocks REJECTED: a muted matchup gets its ranking vote back by
+  algebra over two certified-stable committees (A/B = (A/PAXG)&divide;(B/PAXG)); zero new parameters, stability
+  inherited; visible toggle on the Overview panel, "◈ VOTE DERIVED" badge on the panes.</td>
+  <td>Measured, net, out-of-sample: crypto Sharpe 1.61&rarr;1.72, +14pp/yr, maxDD ~5.5pp deeper (a conscious trade);
+  stocks 2.41&rarr;2.24 — rejected, the sparse tournament's direct votes beat the hub algebra. Full treatment §12c,
+  including the risk of NOT adopting (regime-dependent blind spot on the BTC crosses) and the hub-concentration risk
+  of adopting.</td>
+  <td>§12c; <code>_derived.log</code>/<code>_prodverify.log</code>; <code>config.DERIVED_VOTES_CRYPTO</code>.</td></tr>
+</tbody>
+</table>
+<p class="tiny muted">Reading the table top to bottom is the ratchet of Part 0 in commit form: cost honesty, evidence
+honesty, deployment honesty (long-only), structural honesty (cadence and tempo), measurement honesty (folds and time
+slices), and finally deployment policy honesty (muting) — each step measured, several steps rolled back or rejected when
+the measurement said no.</p>
+
+<!-- ============================ OQ — OPEN QUESTIONS ============================ -->
+<h2 class="section" id="open-questions"><span class="n">OQ</span>Open questions — what is NOT settled</h2>
+<p class="muted tiny">The affirmed decisions of &sect;13 record what we committed to. This section records the opposite,
+with the same discipline: the places where the current design is known to be provisional, fitted, or unproven. Nothing
+here is hidden in a footnote on purpose.</p>
+
+<div class="aff"><div class="d">OPEN &middot; 2026-07 &middot; theoretical — VERIFIED not occurring (2026-07-15)</div><h4>The dead-slice floor <em>could</em> punish a macro gate for doing its job — checked: it has not.</h4>
+  <p class="tiny" style="margin:0">The time-consistency gate demands that a strategy make money in every stretch of history
+  (no dead slice: the worst of the 4 history slices must keep a core score &ge; 0.05). For a <em>pair</em> committee that is
+  exactly right — a dead quarter means one lucky era. In principle a <b>macro gate</b> (QQQ / TOTALES / OTHERS.D / PAXG) —
+  a whole-sleeve risk switch whose correct behaviour in a bear market is to sit in cash and earn <em>nothing</em> — could be
+  mislabelled "dead" for a correctly-flat bear slice. <b>Checked against the data (2026-07-15): this has not actually
+  happened.</b> The QQQ demotion at the <code>3bcacaa</code> relabel (worst-slice core 0.001) was <em>deserved</em>, not a
+  mislabel: the old committee traded 9 times through the 2021&ndash;23 bear slice and <b>lost</b> money there (slice Sharpe
+  &minus;0.74) — it was churning long into the decline, not sitting out. The v5 regeneration, forced by this gate, replaced it
+  with a committee that crosses the same bear slice roughly flat-positive (slice Sharpe +0.14, worst-slice core 0.31,
+  BORDERLINE) — the gate worked as intended. All four macro gates pass the time gate in the current book. A macro-gate
+  exemption (judging risk-off slices on avoided drawdown rather than earned return) therefore stays a <b>designed-for edge
+  case only</b>: revisit if a future regeneration punishes a gate that was genuinely flat-and-right in a falling market.</p></div>
+
+<div class="aff"><div class="d">OPEN &middot; 2026-07</div><h4>The time-consistency thresholds are fitted numbers, not derived ones.</h4>
+  <p class="tiny" style="margin:0">The two constants of the time gate — spread across history slices (worst-metric
+  coefficient of variation, CoV) capped at <b>1.10</b>, and the dead-slice floor at <b>0.05</b> — were calibrated against
+  the operator's pane review (52 rated panes: 20 GOOD, 6 BAD, 26 in between), fitted on a 12-pane subset (all 6 BAD +
+  6 GOOD) with <b>no held-out ratings</b>. The calibration is comfortable rather than knife-edged (the worst GOOD pane in
+  the set sits at 0.984 and the best BAD pane at 1.241, with SOLPAXG at 1.006 cleared by design, and BAD detection is
+  insensitive to the cap anywhere in 1.00&ndash;1.25) — but a
+  threshold fitted to 12 labels with no holdout is a <em>fitted</em> threshold. Treat it exactly like a tuned parameter:
+  it must be re-derived at each regeneration epoch against fresh operator ratings, never carried forward as if it were a
+  law of nature (<code>fep_robustness.py</code>: "Recalibrate at each regen epoch").</p></div>
+
+<div class="aff"><div class="d">OPEN &middot; 2026-07</div><h4>Certification still targets components, not the thing that holds money.</h4>
+  <p class="tiny" style="margin:0">Every ROBUST / BORDERLINE / FRAGILE stamp certifies one pair committee as a standalone
+  strategy. The portfolio — the rotation that actually holds capital — has measurement channels (the held-out window
+  after the split (rotation out-of-sample, OOS), the untouched final-6-months lockbox, and the forward-decay monitor with
+  its ~50 one-way trades per year of statistical power, &sect;14c) but <b>no verdict of its own</b>: there is no gate that
+  says "this rotation, as configured, is certified" and no formal composition rule from pair labels to a portfolio label.
+  Portfolio-level certification is the roadmap; until it exists, the honest summary is that we certify the bricks and
+  monitor the house.</p></div>
+
+<div class="aff"><div class="d">OPEN &middot; 2026-07</div><h4>The new book's forward superiority over the live book is UNPROVEN.</h4>
+  <p class="tiny" style="margin:0">The v5 book is the first selected under every honesty gate, and that is a reason to
+  prefer it <em>on principle</em> — not proof it will earn more. On the same backtest window (out-of-sample 2024&rarr;2026,
+  net of fees) the v5 crypto rotation scores a Sharpe of 1.38 against the live book's 1.82, and the stock sleeve 2.02
+  against v4's 2.33 (<code>8733723</code>). Re-running that comparison until a favourite emerges would be selection over
+  books — the exact sin the lockbox exists to prevent, and the regen commit warns against it explicitly. The only evidence
+  that can settle "is the honest book also the better book?" is the forward monitor on data that did not exist at
+  generation time. Until that evidence accumulates, the claim stays unproven and this document says so.</p></div>
 
 <div class="foot">
   <p>Live verdict: <code>RSPS/fep_robustness.py &middot; fep_verdict()</code> — the single source of truth. Optimizer:
