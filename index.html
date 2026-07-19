@@ -117,6 +117,8 @@ canvas{max-width:100%;background:transparent;border-radius:8px}
   <div style="font:700 14px/1.3 var(--sans);color:var(--ink)">TPI Robustness<br/><span class="muted tiny">Interactive Methodology</span></div>
   <h4>Plain language</h4>
   <a href="#part0" class="part">0 · The system in plain language</a>
+  <h4>The whole pipeline</h4>
+  <a href="#journey" class="part">J &middot; Journey of one ratio &#9654;</a>
   <h4>Mathematics</h4>
   <a href="#mathematics" class="part">M · The math, in full &#9654;</a>
   <a href="#lab-sharpe-sec">Sharpe</a>
@@ -290,6 +292,798 @@ of the system.</div>
   have passed every operator-rated-BAD pane — rejected, because the dead slice <em>is</em> the signal
   (<code>2efc492</code>, <code>_mute.log</code>, <code>fep_robustness.py</code>).</li>
 </ul>
+
+<h2 class="section" id="journey"><span class="n">J</span>The journey of one ratio — from raw price to a labelled committee</h2>
+<p class="lede">Everything after this section explains a <em>part</em> of the machine. This one shows the <em>whole</em> machine working,
+end to end, on three real pairs from the shipped book — with the actual numbers each stage produced. Step through it once and
+the rest of the document becomes a reference rather than a narrative.</p>
+
+<div class="lab" id="journeylab">
+  <div class="lab-h"><span class="tag">WALKTHROUGH</span><b>One ratio, eighteen stages — pick a pair and follow it</b></div>
+  <div class="lab-body">
+
+    <h2 class="sr-only">Interactive pipeline walkthrough: a selectable asset pair travels through eighteen generation and
+    validation stages. A history ribbon shows which slice of price history each stage is permitted to see — with the reserved
+    holdout locked until the final stages — alongside a narrowing candidate funnel and the real measured value each stage
+    produced for the selected pair.</h2>
+
+    <!-- ── pair picker ─────────────────────────────────────────── -->
+    <div class="tj-pick">
+      <div class="tj-pick-lab">Follow this pair:</div>
+      <div class="seg tj-seg" id="tj-pairs"></div>
+      <div class="tj-outcome" id="tj-outcome"></div>
+    </div>
+
+    <!-- ── history ribbon ──────────────────────────────────────── -->
+    <div class="tj-ribbon-wrap">
+      <div class="tj-ribbon-head">
+        <b>What this stage is allowed to see</b>
+        <span class="muted tiny" id="tj-seen">&nbsp;</span>
+      </div>
+      <div class="tj-ribbon" id="tj-ribbon">
+        <div class="tj-seg-bar tj-is"   id="tj-bar-is"><span>In-sample &middot; build &amp; tune here</span></div>
+        <div class="tj-seg-bar tj-oos"  id="tj-bar-oos"><span>Out-of-sample</span></div>
+        <div class="tj-seg-bar tj-lock" id="tj-bar-lock"><span class="tj-lockicon">&#128274;</span><span>Lockbox &middot; 6 months</span></div>
+      </div>
+      <div class="tj-ribbon-foot muted tiny">
+        The bar is the pair&rsquo;s full price history, oldest on the left. A lit block means this stage may read that data;
+        a dimmed block means it cannot. The lockbox stays sealed for fifteen of the eighteen stages &mdash; that is the single
+        most important property of the whole pipeline.
+      </div>
+    </div>
+
+    <!-- ── stage rail ──────────────────────────────────────────── -->
+    <div class="tj-rail" id="tj-rail"></div>
+
+    <!-- ── main panel ──────────────────────────────────────────── -->
+    <div class="tj-main">
+      <div class="tj-stage">
+        <div class="tj-stage-h">
+          <span class="tj-act" id="tj-act"></span>
+          <h4 id="tj-title"></h4>
+          <span class="tj-verdict" id="tj-vd"></span>
+        </div>
+        <p class="tj-plain" id="tj-plain"></p>
+        <p class="tj-tech muted" id="tj-tech"></p>
+        <div class="tj-measure" id="tj-measure"></div>
+        <canvas id="tj-plot" class="tj-plot" width="660" height="200"></canvas>
+        <div class="tj-plotcap muted tiny" id="tj-plotcap"></div>
+        <div class="tj-code muted tiny" id="tj-code"></div>
+      </div>
+
+      <div class="tj-side">
+        <div class="tj-funnel-h">Candidates still standing</div>
+        <div class="tj-funnel" id="tj-funnel"></div>
+        <div class="tj-funnel-note muted tiny" id="tj-funnel-note"></div>
+      </div>
+    </div>
+
+    <div class="tj-nav">
+      <button type="button" id="tj-prev">&larr; Previous</button>
+      <button type="button" id="tj-play">&#9654; Play the whole journey</button>
+      <button type="button" id="tj-next">Next &rarr;</button>
+      <span class="tj-count muted tiny" id="tj-count"></span>
+    </div>
+
+    <p class="note tiny" style="margin-bottom:0"><b>What it shows:</b> Every number in this walkthrough is read from the
+    shipped <code>robustness_&lt;pair&gt;_auto.json</code> artifacts &mdash; nothing is illustrative. The three pairs were chosen
+    because they fail in three different, instructive ways: <b>BNBETH</b> passes every gate and the holdout and is
+    <em>still</em> held back for want of evidence; <b>ETHBTC</b> dies on a dead stretch of history despite good coherence;
+    <b>QQQ</b> has perfect edge scores and a passing holdout but cannot beat a coin flip, and the holdout does not rescue it.<br>
+    <b>Which era this shows:</b> the counts describe the <em>shipped book</em> &mdash; a 34-indicator pool for a directly-traded
+    pair and three finalists, confirmed from each artifact&rsquo;s own search ledger. The current working tree has since widened
+    the pool to 52 (34 for synthetic ratios) and the dashboard presets carry four finalists, so a run launched today would show
+    a wider funnel than the one drawn here.</p>
+  </div>
+</div>
+
+<style>
+/* ── journey walkthrough (scoped .tj-*) ───────────────────────── */
+#journeylab .tj-pick{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:16px}
+#journeylab .tj-pick-lab{font-size:13px;color:var(--muted)}
+#journeylab .tj-seg button{min-width:96px}
+#journeylab .tj-seg button.on{background:var(--accent);color:#08121f;font-weight:700}
+#journeylab .tj-outcome{margin-left:auto;font-size:13px;color:var(--muted)}
+
+#journeylab .tj-ribbon-wrap{background:rgba(10,15,24,.5);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:16px}
+#journeylab .tj-ribbon-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:8px;font-size:13px}
+#journeylab .tj-ribbon{display:flex;height:46px;border-radius:8px;overflow:hidden;border:1px solid var(--line)}
+#journeylab .tj-seg-bar{display:flex;align-items:center;justify-content:center;gap:6px;font-size:11px;text-align:center;
+  transition:opacity .35s,filter .35s,background .35s;padding:0 6px;position:relative}
+#journeylab .tj-is{flex:3;background:linear-gradient(180deg,rgba(90,169,255,.30),rgba(90,169,255,.13));color:#cfe4ff}
+#journeylab .tj-oos{flex:1;background:linear-gradient(180deg,rgba(139,123,255,.30),rgba(139,123,255,.13));color:#ded8ff}
+#journeylab .tj-lock{flex:.85;background:repeating-linear-gradient(45deg,#171d28,#171d28 6px,#1d2432 6px,#1d2432 12px);color:var(--muted)}
+#journeylab .tj-seg-bar.dim{opacity:.22;filter:grayscale(.85)}
+#journeylab .tj-lock.open{background:linear-gradient(180deg,rgba(49,196,141,.34),rgba(49,196,141,.14));color:#c7f4e2}
+#journeylab .tj-lockicon{font-size:13px}
+#journeylab .tj-ribbon-foot{margin-top:8px;line-height:1.5}
+
+#journeylab .tj-rail{display:flex;gap:3px;margin:0 0 14px}
+#journeylab .tj-rail button{flex:1;height:26px;border:0;border-radius:5px;background:var(--chip);color:var(--muted);
+  font:600 10px/1 var(--mono);cursor:pointer;transition:background .2s,color .2s;padding:0}
+#journeylab .tj-rail button:hover{background:#2c3a4e;color:var(--ink)}
+#journeylab .tj-rail button.on{background:var(--accent);color:#08121f}
+#journeylab .tj-rail button.actA.on{background:var(--accent)}
+#journeylab .tj-rail button.actB.on{background:var(--accent2)}
+#journeylab .tj-rail button.actC.on{background:var(--ok)}
+#journeylab .tj-rail button.actD.on{background:var(--good);color:#062b1d}
+
+#journeylab .tj-main{display:grid;grid-template-columns:1fr 210px;gap:16px}
+@media(max-width:760px){#journeylab .tj-main{grid-template-columns:1fr}}
+#journeylab .tj-stage{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;min-height:230px}
+#journeylab .tj-stage-h{display:flex;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap}
+#journeylab .tj-stage-h h4{margin:0;font-size:17px;flex:1;color:var(--ink)}
+#journeylab .tj-act{font:700 9px/1 var(--mono);letter-spacing:.12em;padding:4px 7px;border-radius:5px;
+  background:var(--chip);color:var(--muted);white-space:nowrap}
+#journeylab .tj-verdict{font:700 10px/1 var(--mono);letter-spacing:.08em;padding:5px 9px;border-radius:20px;white-space:nowrap}
+#journeylab .tj-verdict.ok{background:rgba(49,196,141,.16);color:var(--good);border:1px solid rgba(49,196,141,.4)}
+#journeylab .tj-verdict.warn{background:rgba(246,183,60,.15);color:var(--ok);border:1px solid rgba(246,183,60,.4)}
+#journeylab .tj-verdict.bad{background:rgba(240,97,106,.15);color:var(--bad);border:1px solid rgba(240,97,106,.4)}
+#journeylab .tj-verdict.info{background:var(--chip);color:var(--muted);border:1px solid var(--line)}
+#journeylab .tj-plain{margin:8px 0 0;font-size:15px;line-height:1.6}
+#journeylab .tj-tech{margin:8px 0 0;font-size:13px;line-height:1.55}
+#journeylab .tj-measure{margin-top:12px;padding:11px 13px;border-radius:9px;background:rgba(10,15,24,.55);
+  border-left:3px solid var(--line);font-size:14px}
+#journeylab .tj-measure.ok{border-left-color:var(--good)}
+#journeylab .tj-measure.warn{border-left-color:var(--ok)}
+#journeylab .tj-measure.bad{border-left-color:var(--bad)}
+#journeylab .tj-measure b{font-family:var(--mono);color:var(--ink)}
+#journeylab .tj-measure .lbl{color:var(--muted);font-size:12px;display:block;margin-bottom:3px;
+  text-transform:uppercase;letter-spacing:.07em}
+#journeylab .tj-plot{display:block;width:100%;height:auto;margin-top:14px;border-radius:9px;
+  background:rgba(10,15,24,.55);border:1px solid var(--line)}
+#journeylab .tj-plot.hide{display:none}
+#journeylab .tj-plotcap{margin-top:6px;line-height:1.45}
+#journeylab .tj-code{margin-top:10px;font-family:var(--mono);font-size:11px}
+
+#journeylab .tj-side{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px}
+#journeylab .tj-funnel-h{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px}
+#journeylab .tj-funnel{display:flex;flex-direction:column;gap:4px}
+#journeylab .tj-frow{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--muted)}
+#journeylab .tj-fbar{height:15px;border-radius:3px;background:linear-gradient(90deg,var(--accent),var(--accent2));
+  transition:width .4s;min-width:3px}
+#journeylab .tj-frow.on{color:var(--ink)}
+#journeylab .tj-frow.on .tj-fbar{background:linear-gradient(90deg,var(--good),var(--accent))}
+#journeylab .tj-frow.past .tj-fbar{opacity:.3}
+#journeylab .tj-fnum{font-family:var(--mono);min-width:40px;text-align:right;color:var(--ink)}
+#journeylab .tj-funnel-note{margin-top:10px;line-height:1.45}
+
+#journeylab .tj-nav{display:flex;align-items:center;gap:8px;margin-top:14px}
+#journeylab .tj-nav button{background:var(--panel2);color:var(--ink);border:1px solid var(--line);
+  padding:8px 14px;border-radius:8px;font-size:13px;cursor:pointer}
+#journeylab .tj-nav button:hover{border-color:var(--accent);color:var(--accent)}
+#journeylab .tj-nav button:disabled{opacity:.35;cursor:default;border-color:var(--line);color:var(--muted)}
+#journeylab .tj-count{margin-left:auto}
+</style>
+
+<script>
+(function(){
+  var root=document.getElementById('journeylab'); if(!root) return;
+
+  /* Real values read from the shipped robustness_<pair>_auto.json artifacts. */
+  var P={
+    BNBETH:{label:'BNBETH',desc:'BNB priced in ETH',src:'direct Binance market',codes:'TRENDILO + STRENGTH + AAMDMOM',
+      verdict:'BORDERLINE',tier:'STABLE-ROBUST',crit:[],
+      screen:4080,beam:1335,tune:2280,sel:7695,
+      wfRatio:1.635,wfFolds:2,wfValid:2,wfTrades:9,
+      cov:0.0553,covN:42,mcReal:0.1373,mcNull:0.0653,mcPos:1.00,
+      tCv:1.027,tCore:0.172,tOk:true,coh:0.805,turn:0.947,
+      eT:4,eW:4,eO:4,lbN:3,lbOk:true,lbGreen:4,lbSharpe:1.65,
+      srx:0.017,sric:-1.8576,
+      withheld:'the lockbox holds only <b>3</b> trades (<b>10</b> required), and the over-tuning correction is negative'},
+    ETHBTC:{label:'ETHBTC',desc:'ETH priced in BTC',src:'direct Binance market',codes:'PSAR + AFR + LRSI',
+      verdict:'FRAGILE',tier:'UNSTABLE',crit:['dead stretch of history'],
+      screen:4080,beam:1185,tune:3480,sel:8745,
+      wfRatio:0.0,wfFolds:4,wfValid:1,wfTrades:7,
+      cov:0.0991,covN:45,mcReal:0.1222,mcNull:0.0920,mcPos:0.95,
+      tCv:12.038,tCore:0.000,tOk:false,coh:0.818,turn:0.968,
+      eT:3,eW:1,eO:4,lbN:2,lbOk:false,lbGreen:0,lbSharpe:-1.148,
+      srx:-0.2145,sric:-2.4337,withheld:null},
+    QQQ:{label:'QQQ',desc:'the Nasdaq-100 ETF, used as the macro risk gate',src:'direct market',codes:'PSAR + ST + DEMADMI',
+      verdict:'FRAGILE',tier:'UNSTABLE',crit:['cannot beat a coin flip','too few trades'],
+      screen:4080,beam:1249,tune:3960,sel:9289,
+      wfRatio:0.0,wfFolds:2,wfValid:1,wfTrades:5,
+      cov:0.0821,covN:44,mcReal:0.1285,mcNull:0.1424,mcPos:0.40,
+      tCv:0.907,tCore:0.111,tOk:true,coh:0.873,turn:0.920,
+      eT:4,eW:4,eO:4,lbN:4,lbOk:true,lbGreen:4,lbSharpe:1.242,
+      srx:0.2573,sric:-0.7319,withheld:null}
+  };
+  var ORDER=['BNBETH','ETHBTC','QQQ'];
+  function f(x,n){return (x==null||isNaN(x))?'&mdash;':Number(x).toFixed(n==null?2:n);}
+  function pct(x){return (x*100).toFixed(0)+'%';}
+
+  var S=[
+   {act:'A',t:'Choose the ratio',sees:['is','oos','lock'],
+    plain:'A committee is always built for one <em>ratio</em> &mdash; one asset priced in another &mdash; never for a lone coin. The ratio is what the rotation actually trades: hold the top asset while it is beating the one it is measured against.',
+    tech:'The basket and primary asset fix the asset class (crypto uses a 365-day year, stocks 252) and whether the ratio is a real traded market or synthesised from two separate price series.',
+    code:'tpi_autogen.py:2688-2704',
+    m:function(p){return {lbl:'The pair',v:p.desc+' &middot; <b>'+p.src+'</b><br><span class="muted tiny">members chosen later: '+p.codes+'</span>',s:'info'};}},
+
+   {act:'A',t:'Seal the lockbox',sees:[],lock:'seal',
+    plain:'Before anything else runs, the most recent six months are cut off and put away. No later stage can read them &mdash; not the search, not the tuning, not any of the tests. This is not a promise to look away: the data is simply absent from the frame everything else works on.',
+    tech:'The working frame is truncated at the carve, ahead of every downstream stage. Only the final holdout read touches the full-history frame. Assets with too little history are exempted, and simply never get certified this way.',
+    code:'tpi_autogen.py:2750-2756 &middot; LOCKBOX_MONTHS = 6',
+    m:function(p){return {lbl:'Reserved and sealed',v:'the last <b>6 months</b> &mdash; opened once, at stage 15',s:'info'};}},
+
+   {act:'A',t:'Split past from future',sees:['is','oos'],
+    plain:'What remains is split in two. The older three quarters are where committees are built and tuned. The newer quarter is held back so the result can be checked on data the tuner never saw.',
+    tech:'In-sample fraction 0.75. The out-of-sample tail is used for reporting and edge-persistence checks; a 2026-07-16 fix removed it from the candidate-selection sort so it can judge without also selecting.',
+    code:'tpi_autogen.py:2763 &middot; is_frac = 0.75',
+    m:function(p){return {lbl:'Split',v:'<b>75%</b> in-sample &nbsp;/&nbsp; <b>25%</b> out-of-sample',s:'info'};}},
+
+   {act:'B',t:'Audition every indicator alone',sees:['is'],fn:34,
+    plain:'Each indicator in the pool is tuned on its own, to see whether it can say anything useful about this ratio at all. Any that can only be tuned into a flat line &mdash; never changing its vote &mdash; is struck out before committees are formed.',
+    tech:'Solo screen at 40 trials per indicator per size level. Degenerate fits are excluded at generation, never dropped later at runtime.',
+    code:'tpi_autogen.py:2769-2776',
+    m:function(p){return {lbl:'Solo screening runs',v:'<b>'+p.screen.toLocaleString()+'</b> &mdash; 34 indicators &times; 40 trials &times; 3 committee sizes',s:'info'};}},
+
+   {act:'B',t:'Assemble candidate committees',sees:['is'],fn:13,
+    plain:'Survivors are combined into candidate committees two ways at once: a <em>diverse</em> search that limits how many members may come from the same family, and a <em>free</em> search that simply chases the best score. Both feed the same pool, so a committee cannot win merely by stacking five variations of one idea.',
+    tech:'Two-regime greedy beam (width 6) with a per-family cap, additive rather than evictive, plus seeding of the current incumbent committee.',
+    code:'tpi_autogen.py:2784-2837',
+    m:function(p){return {lbl:'Committee-building runs',v:'<b>'+p.beam.toLocaleString()+'</b> beam evaluations &rarr; up to 13 committees (&le;6 diverse + &le;6 free + the incumbent)',s:'info'};}},
+
+   {act:'B',t:'Tune each committee together',sees:['is'],fn:13,
+    plain:'Every candidate has its parameters tuned jointly &mdash; the members are optimised as a group, because a committee is more than a pile of separately-good indicators.',
+    tech:'Optuna, 120 trials per combination, scored on the in-sample window only.',
+    code:'tpi_autogen.py:2849',
+    m:function(p){return {lbl:'Tuning runs',v:'<b>'+p.tune.toLocaleString()+'</b> on this pair',s:'info'};}},
+
+   {act:'B',t:'Refuse the whipsawers and the statues',sees:['is'],fn:13,
+    plain:'A committee that flips its vote every few days would be shredded by trading costs. One that never moves is not a signal at all. Both are rejected outright here &mdash; not scored down, rejected &mdash; before anything expensive is measured.',
+    tech:'The enforced composite gates are: shortest-quartile run length, share of time spent in very short runs, most flips inside any 30-day window, a minimum flips-per-year tempo floor, and dither (how often the blended vote sits near zero). Individual members are separately screened for noise ("barcode") and for being frozen ("quasi-static"). A macro-gate pair adds one further ceiling on flips per year. <b>Note:</b> an older per-pair profile listing dwell time and per-member run length still exists in the source but is <em>not</em> read by the live gate &mdash; do not infer those are enforced.',
+    code:'tpi_autogen.py:_cadence_violation &middot; CADENCE_V2 keys; macro ceiling 12 flips/yr',
+    m:function(p){return {lbl:'How steadily the members trade together',v:'turnover coherence <b>'+f(p.turn)+'</b>',s:p.turn>0.9?'ok':'warn'};}},
+
+   {act:'B',t:'Shortlist the best few',sees:['is'],fn:3,
+    plain:'The survivors are ranked and only the top three go forward to the expensive tests. From here the pipeline stops searching for a winner and starts trying to knock the survivors down.',
+    tech:'Ranked on in-sample edge count first, then a blended in-sample objective. The held-back quarter deliberately does not feed this sort.',
+    code:'tpi_autogen.py:3037',
+    m:function(p){return {lbl:'Shortlist',v:'<b>3</b> candidates advance to the robustness battery',s:'info'};}},
+
+   {act:'C',t:'Re-tune on the past, test on the future',sees:['is','oos'],fn:3,plot:'fold',plotH:300,anim:true,animMs:1600,
+    plain:'The honest form of backtesting: tune on an early stretch, test on the stretch that follows, roll forward, repeat. The question is not "was it good?" but "how much of its tuned performance survived on data it had not seen?"',
+    tech:'Walk-forward efficiency (Pardo). Parameters are genuinely refitted per fold rather than carried over. Folds with too few trades are marked invalid rather than scored. Below 30 out-of-sample trades the result cannot certify anything &mdash; it caps the verdict instead.',
+    code:'fep_robustness.py &middot; WFE_STABLE_FLOOR = 0.50, WFE_MIN_TRADES = 30',
+    m:function(p){var ok=p.wfTrades>=30;
+      return {lbl:'Edge retained on unseen data',
+        v:'<b>'+f(p.wfRatio)+'</b> retained across <b>'+p.wfValid+'</b> of '+p.wfFolds+' usable folds, on <b>'+p.wfTrades+'</b> trades<br><span class="muted tiny">'+(ok?'enough trades to certify':'fewer than 30 trades, so this cannot certify &mdash; it caps the verdict at BORDERLINE')+'</span>',
+        s:p.wfRatio>=0.5?(ok?'ok':'warn'):'bad'};}},
+
+   {act:'C',t:'Nudge every parameter',sees:['is'],fn:3,plot:'cv',plotH:300,anim:true,animMs:520,
+    plain:'Each tuned setting is shifted a few steps either way and everything is measured again. If small nudges swing the results wildly, the winning setting was a lucky spike rather than a real effect. A sound committee sits on a plateau, not on a needle.',
+    tech:'A plus/minus three-step neighbourhood sweep. The gate uses the worst spread across metrics, not the average, so one unstable metric cannot hide behind six calm ones.',
+    code:'tpi_autogen.py:1810 &middot; cap 20%',
+    m:function(p){return {lbl:'Worst spread under nudging',v:'<b>'+pct(p.cov)+'</b> across '+p.covN+' neighbours <span class="muted tiny">(cap 20%)</span>',s:p.cov<=0.20?'ok':'bad'};}},
+
+   {act:'C',t:'Race it against pure chance',sees:['is'],fn:3,plot:'mc',plotH:280,anim:true,animMs:1100,
+    plain:'The price history is reshuffled many times &mdash; keeping its overall drift but destroying the order of the moves &mdash; and the committee is re-run on each fake history. If it cannot beat scrambled data, what looked like an edge was a pattern in noise.',
+    tech:'Block-bootstrap Monte-Carlo, 20 simulations. The gate is the fraction of shuffles the real score beats.',
+    code:'fep_robustness.py &middot; floor 0.50',
+    m:function(p){return {lbl:'Share of random shuffles it beats',
+      v:'<b>'+pct(p.mcPos)+'</b> <span class="muted tiny">(floor 50%)</span><br><span class="muted tiny">real score '+f(p.mcReal,3)+' against a shuffled average of '+f(p.mcNull,3)+'</span>',
+      s:p.mcPos>=0.5?'ok':'bad'};}},
+
+   {act:'C',t:'Check it worked in every era',sees:['is','oos'],fn:3,plot:'era',plotH:290,anim:true,animMs:1400,
+    plain:'History is cut into separate eras and the committee measured in each. One that made all its money in a single lucky stretch and did nothing for years is not robust &mdash; it is one bet wearing a strategy costume. A completely dead era fails outright.',
+    tech:'The TIME neighbourhood over four history slices: the worst-slice spread must hold and no slice may be dead. The dead-slice rule is deliberately unforgiving; forgiving it was tested and rejected, because the dead slice <em>is</em> the signal.',
+    code:'fep_robustness.py &middot; worst-slice floor 0.05',
+    m:function(p){return {lbl:'Weakest era',
+      v:'weakest-slice activity <b>'+f(p.tCore,3)+'</b> <span class="muted tiny">(floor 0.05)</span>, spread across eras '+f(p.tCv)+(p.tOk?'':'<br><span class="muted tiny">a dead stretch of history &mdash; a hard failure, whatever else passed</span>'),
+      s:p.tOk?'ok':'bad'};}},
+
+   {act:'C',t:'Do the members actually agree?',sees:['is'],fn:3,
+    plain:'A committee whose members constantly contradict each other is really several strategies in a trench coat, and its average vote is mush. Coherence measures how often the members point the same way.',
+    tech:'Pairwise signal agreement, alongside turnover coherence. Advisory in the ladder itself, but it feeds the tier that decides deployability.',
+    code:'fep_robustness.py &middot; floor 0.45',
+    m:function(p){return {lbl:'Member agreement',v:'<b>'+f(p.coh)+'</b> <span class="muted tiny">(floor 0.45)</span>',s:p.coh>=0.45?'ok':'bad'};}},
+
+   {act:'D',t:'Grade every finalist, then pick one',sees:['is','oos'],fn:3,plot:'floors',plotH:210,
+    plain:'Now the labelling &mdash; and it happens to <em>each</em> shortlisted candidate, not just to a pre-chosen winner. Fail any hard gate and that candidate is FRAGILE, however pretty everything else looks. Pass them all and it must still clear at least three of four profit floors on several views of the data. Some things &mdash; chiefly too few trades to judge &mdash; cap the result at BORDERLINE rather than failing it, because "not proven" is not the same as "bad". Only once every finalist carries a grade is one of them adopted.',
+    tech:'A conjunction of hard gates, then the edge floors (Sortino 1.0, Profit Factor 1.5, Omega 1.15, Sharpe 0.7 &mdash; three of four required), then the caps. Important structural point: fep_verdict runs per candidate inside the report builder, ahead of selection &mdash; it is not a single box applied after a winner exists.',
+    code:'fep_robustness.py &middot; fep_verdict()',
+    m:function(p){var g=p.crit.length===0;
+      return {lbl:'Verdict before the holdout is opened',
+        v:'floors cleared: <b>'+p.eT+'/4</b> tuned &middot; <b>'+p.eW+'/4</b> worst-case &middot; <b>'+p.eO+'/4</b> out-of-sample<br>'+(g?'no hard gate failed &rarr; <b>'+p.verdict+'</b>':'hard gate failed &mdash; <b>'+p.crit.join(', ')+'</b> &rarr; <b>FRAGILE</b>'),
+        s:g?(p.verdict==='ROBUST'?'ok':'warn'):'bad'};}},
+
+   {act:'D',t:'Open the lockbox, once',sees:['lock'],lock:'open',fn:1,plot:'lockfloors',plotH:210,
+    plain:'Only now, with the committee already chosen and already graded, is the sealed six months opened and the committee run across it. This is the one genuinely unseen test in the whole process, and it gets exactly one look. Nothing can be re-tuned in response to what it says.',
+    tech:'Measured after the winner is stamped and the search ledger finalised, so no result here can flow back into what was built. That ordering is what makes it evidence rather than another tuning signal.',
+    code:'tpi_autogen.py:2596, :3323',
+    m:function(p){return {lbl:'On data never seen before',
+      v:'<b>'+p.lbN+'</b> trades &middot; Sharpe <b>'+f(p.lbSharpe)+'</b> &middot; floors cleared <b>'+p.lbGreen+'/4</b><br><span class="muted tiny">'+(p.lbOk?'the holdout shows an edge':'the holdout shows no edge')+'</span>',
+      s:p.lbOk?'ok':'bad'};}},
+
+   {act:'D',t:'Count how hard we looked',sees:[],fn:1,plot:'luck',plotH:270,anim:true,animMs:900,
+    plain:'Search thousands of variants and the best one looks good partly by luck &mdash; the tallest person in a crowd is tall partly by selection. So the system records how many things it tried, and asks whether the winner beats what luck alone would have produced from that many attempts.',
+    tech:'Two different corrections. One asks whether the winner beats a best-of-many-random benchmark; the other penalises over-tuning within a single trial by parameter count. They can disagree &mdash; and on these pairs they do.',
+    code:'tpi_autogen.py:206-210 &middot; expected_max_sharpe, sric',
+    m:function(p){return {lbl:'Luck corrections',
+      v:'<b>'+p.sel.toLocaleString()+'</b> selection trials counted<br>beats best-of-random by <b>'+(p.srx>0?'+':'')+f(p.srx,3)+'</b> &middot; over-tuning correction <b>'+f(p.sric)+'</b><br><span class="muted tiny">'+(p.sric<0?'the second correction predicts negative future performance':'both corrections agree')+'</span>',
+      s:(p.srx>0&&p.sric>=0)?'ok':(p.srx>0?'warn':'bad')};}},
+
+   {act:'D',t:'Should the holdout promote it?',sees:['lock'],lock:'open',fn:1,
+    plain:'A committee too slow to certify the usual way can instead be promoted on the strength of the sealed holdout. But a handful of trades is not evidence, so promotion also demands a minimum number of holdout trades and that <em>both</em> luck corrections agree. Where it does not qualify, the reason is recorded rather than the badge quietly going missing.',
+    tech:'Fires only on a committee already capped by the walk-forward rule with every other gate passed. The evidence floor was added after the 2026-07-18 assessment found the first such promotion resting on three trades.',
+    code:'tpi_autogen.py:3395-3428 &middot; LOCKBOX_CERT_MIN_TRADES = 10',
+    m:function(p){
+      if(p.withheld) return {lbl:'Promotion withheld',v:'<b>withheld</b> &mdash; '+p.withheld,s:'warn'};
+      if(p.crit.length) return {lbl:'Not eligible',v:'already FRAGILE on a hard gate &mdash; a passing holdout cannot rescue a committee that failed a gate',s:'bad'};
+      return {lbl:'Promotion',v:'not applicable for this pair',s:'info'};}},
+
+   {act:'D',t:'The final label',sees:['is','oos','lock'],lock:'open',fn:1,
+    plain:'Two labels are stamped. The <em>verdict</em> says how much the evidence proves. The <em>tier</em> says how the committee behaves &mdash; and stability comes first, because an unstable committee must never be deployed however good its returns look.',
+    tech:'stability_first_tier: STABLE-ROBUST, STABLE-EDGE, STABLE-THIN, STABLE-NO-EDGE, UNSTABLE. Since 2026-07-18 the crown additionally requires recent out-of-sample edge, so the badge can no longer be less demanding than the verdict beneath it.',
+    code:'fep_robustness.py &middot; stability_first_tier()',
+    m:function(p){return {lbl:'Shipped label',v:'verdict <b>'+p.verdict+'</b> &nbsp;&middot;&nbsp; tier <b>'+p.tier+'</b>',
+      s:p.tier==='UNSTABLE'?'bad':(p.verdict==='ROBUST'?'ok':'warn')};}}
+  ];
+
+  /* ── real per-pair detail, read from the shipped artifacts ─────────── */
+  var TJD={"BNBETH":{"folds":[{"te":"2024-07","a":"2024-07","b":"2025-04","tc":0.502,"sc":1.158,"r":2.307,"n":5},{"te":"2025-04","a":"2025-04","b":"2026-01","tc":0.608,"sc":0.483,"r":0.795,"n":4}],"eras":[{"a":"2020-01","b":"2021-07","sh":1.212,"n":8},{"a":"2021-07","b":"2023-01","sh":0.204,"n":12},{"a":"2023-01","b":"2024-07","sh":-0.18,"n":11},{"a":"2024-07","b":"2026-01","sh":1.681,"n":10}],"cv":{"Intra-trade Max DD":0.049,"Omega":0.0082,"Profit Factor":0.0553,"Profitable %":0.041,"Sharpe":0.0373,"Sortino":0.0393,"Trades":0.0405},"nbN":42,"mc":{"real":0.1373,"null":0.0653,"pos":1.0,"sims":20},"full":{"Omega":1.242,"Profit Factor":3.197,"Sharpe":0.8,"Sortino":1.574},"lock":{"Omega":1.388,"Profit Factor":15.259,"Sharpe":1.65,"Sortino":2.866},"lockN":3},"ETHBTC":{"folds":[{"te":"2024-07","a":"2024-07","b":"2024-11","tc":0.476,"sc":0,"r":0,"n":2},{"te":"2024-11","a":"2024-11","b":"2025-04","tc":0.422,"sc":0,"r":0,"n":1},{"te":"2025-04","a":"2025-04","b":"2025-08","tc":0.46,"sc":1.626,"r":3.0,"n":1},{"te":"2025-08","a":"2025-08","b":"2026-01","tc":0.437,"sc":0,"r":0,"n":3}],"eras":[{"a":"2020-01","b":"2021-07","sh":1.903,"n":8},{"a":"2021-07","b":"2023-01","sh":0.229,"n":12},{"a":"2023-01","b":"2024-07","sh":-2.425,"n":15},{"a":"2024-07","b":"2026-01","sh":0.823,"n":6}],"cv":{"Intra-trade Max DD":0.0,"Omega":0.0129,"Profit Factor":0.0521,"Profitable %":0.0708,"Sharpe":0.0939,"Sortino":0.0991,"Trades":0.0595},"nbN":45,"mc":{"real":0.1222,"null":0.092,"pos":0.95,"sims":20},"full":{"Omega":1.155,"Profit Factor":2.0,"Sharpe":0.617,"Sortino":1.004},"lock":{"Omega":0.757,"Profit Factor":0.0,"Sharpe":-1.148,"Sortino":-1.496},"lockN":2},"QQQ":{"folds":[{"te":"2024-07","a":"2024-07","b":"2025-04","tc":0.66,"sc":0.112,"r":0.169,"n":4},{"te":"2025-04","a":"2025-04","b":"2026-01","tc":0.723,"sc":1.087,"r":1.503,"n":1}],"eras":[{"a":"2020-01","b":"2021-07","sh":1.576,"n":5},{"a":"2021-07","b":"2023-01","sh":-0.361,"n":7},{"a":"2023-01","b":"2024-07","sh":1.582,"n":6},{"a":"2024-07","b":"2026-01","sh":0.727,"n":7}],"cv":{"Intra-trade Max DD":0.0821,"Omega":0.012,"Profit Factor":0.0787,"Profitable %":0.0467,"Sharpe":0.057,"Sortino":0.0618,"Trades":0.0716},"nbN":44,"mc":{"real":0.1285,"null":0.1424,"pos":0.4,"sims":20},"full":{"Omega":1.22,"Profit Factor":2.954,"Sharpe":0.953,"Sortino":1.359},"lock":{"Omega":1.364,"Profit Factor":2.288,"Sharpe":1.242,"Sortino":1.721},"lockN":4}};
+
+  var INK='#e7edf5',MUT='#9aa7b8',ACC='#5aa9ff',AC2='#8b7bff',
+      GOOD='#31c48d',OKC='#f6b73c',BAD='#f0616a',LN='#2a3342';
+  var FLOORS={'Sortino':1.0,'Profit Factor':1.5,'Omega':1.15,'Sharpe':0.7};
+
+  function txt(g,s,x,y,col,size,align){
+    g.fillStyle=col||MUT; g.font=(size||11)+'px '+'ui-monospace,Menlo,Consolas,monospace';
+    g.textAlign=align||'left'; g.textBaseline='middle'; g.fillText(s,x,y);
+  }
+  function line(g,x1,y1,x2,y2,col,dash){
+    g.strokeStyle=col||LN; g.lineWidth=1; g.setLineDash(dash||[]);
+    g.beginPath(); g.moveTo(x1,y1); g.lineTo(x2,y2); g.stroke(); g.setLineDash([]);
+  }
+  function rrect(g,x,y,w,h,r,fill){
+    if(h<0){y=y+h;h=-h;} r=Math.min(r,h/2,w/2);
+    g.beginPath();
+    g.moveTo(x+r,y); g.lineTo(x+w-r,y); g.quadraticCurveTo(x+w,y,x+w,y+r);
+    g.lineTo(x+w,y+h-r); g.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+    g.lineTo(x+r,y+h); g.quadraticCurveTo(x,y+h,x,y+h-r);
+    g.lineTo(x,y+r); g.quadraticCurveTo(x,y,x+r,y);
+    g.closePath(); g.fillStyle=fill; g.fill();
+  }
+
+  /* Each drawer returns a caption string. */
+  var DRAW={};
+
+  /* Shared chrome: an upper SCHEMATIC/PROCEDURE panel and a lower MEASURED panel. */
+  function panelHead(g,W,L,R,title,note){
+    txt(g,title,L,12,MUT,9.5);
+    if(note) txt(g,note,W-R,12,'#6f7d90',9.5,'right');
+  }
+  function divider(g,W,L,R,y,label){
+    line(g,L-30,y,W-R+30,y,LN);
+    txt(g,label,L,y+13,MUT,9.5);
+  }
+
+  /* ── WALK-FORWARD: the window rolls; the ratio IS test-edge ÷ train-edge ── */
+  DRAW.fold=function(g,W,H,p,d){
+    var F=d.folds||[]; if(!F.length) return 'No usable folds for this pair.';
+    var L=42,R=14, iw=W-L-R;
+    var act=animFrame%F.length;
+
+    panelHead(g,W,L,R,'HOW THE WINDOW ROLLS','tune on the left block, trade the right one');
+    var rowH=Math.min(24,(H*0.44)/F.length), top=24;
+    F.forEach(function(f,i){
+      var y=top+i*rowH, on=(i===act);
+      var trainW=iw*0.56*(0.62+0.38*(i+1)/F.length);   /* training always starts at history start */
+      g.globalAlpha=on?1:0.42;
+      rrect(g,L,y+3,trainW,rowH-9,3,'#33456a');
+      txt(g,'tune',L+6,y+3+(rowH-9)/2,on?'#bcd0f0':'#7d8ca6',9.5);
+      var testW=iw*0.30;
+      rrect(g,L+trainW+4,y+3,testW,rowH-9,3,f.r>=0.5?GOOD:BAD);
+      txt(g,'test',L+trainW+10,y+3+(rowH-9)/2,'#08121f',9.5);
+      g.globalAlpha=1;
+      txt(g,f.a+'→'+f.b,L+trainW+testW+10,y+3+(rowH-9)/2,on?INK:'#6f7d90',9.5);
+      if(on){ g.strokeStyle=ACC; g.lineWidth=1; g.setLineDash([3,3]);
+        g.strokeRect(L-3,y,iw+6,rowH-3); g.setLineDash([]); }
+    });
+
+    var dv=top+F.length*rowH+10;
+    divider(g,W,L,R,dv,'MEASURED — fold '+(act+1)+' of '+F.length+', '+pair);
+
+    /* the division that defines the metric */
+    var f=F[act], by=dv+34, bh=H-by-30;
+    var mx=Math.max(0.9,Math.max(f.tc,f.sc)*1.2);
+    var cx=[L+iw*0.20,L+iw*0.44];
+    [['edge while tuning',f.tc,'#5f7bb0'],['edge on unseen data',f.sc,f.r>=0.5?GOOD:BAD]].forEach(function(e,i){
+      var h=Math.max(2,(e[1]/mx)*bh);
+      rrect(g,cx[i]-26,by+bh-h,52,h,3,e[2]);
+      txt(g,e[1].toFixed(3),cx[i],by+bh-h-9,e[2],11.5,'center');
+      txt(g,e[0],cx[i],by+bh+13,MUT,9.5,'center');
+    });
+    txt(g,'÷',(cx[0]+cx[1])/2,by+bh/2,MUT,17,'center');
+    var rx=L+iw*0.76, col=f.r>=0.5?GOOD:BAD;
+    txt(g,'=',L+iw*0.60,by+bh/2,MUT,15,'center');
+    txt(g,f.r.toFixed(2),rx,by+bh/2-8,col,25,'center');
+    txt(g,'kept'+(f.r>=0.5?'':' — below the 0.50 floor'),rx,by+bh/2+16,col,10,'center');
+    txt(g,f.n+' trades in this fold',rx,by+bh+13,MUT,9.5,'center');
+
+    var kept=F.filter(function(x){return x.r>=0.5;}).length;
+    return 'Parameters are genuinely refitted on each tuning block, then traded on the block that follows — never the other way round. '
+      +kept+' of '+F.length+' folds kept at least half the edge they were tuned to.';
+  };
+
+  /* ── PARAMETER SWEEP: plateau vs needle, shape driven by the measured spread ── */
+  DRAW.cv=function(g,W,H,p,d){
+    var keys=Object.keys(d.cv||{}); if(!keys.length) return 'No sweep data.';
+    keys.sort(function(a,b){return d.cv[b]-d.cv[a];});
+    var worst=d.cv[keys[0]], L=42,R=14, iw=W-L-R;
+
+    /* upper: the landscape. Sharpness is a function of the REAL worst spread. */
+    panelHead(g,W,L,R,'WHAT THE SWEEP LOOKS FOR','schematic — sharpness follows the measured spread');
+    var ph=Math.round(H*0.40), top=22, mid=L+iw/2;
+    var sharp=Math.min(1,worst/0.20);                 /* 0 = flat plateau, 1 = needle */
+    var k=1.2+sharp*13;
+    function curve(x){ var t=(x-mid)/(iw/2); return Math.exp(-k*t*t); }
+    g.beginPath();
+    for(var x=L;x<=W-R;x+=2){ var y=top+ph-curve(x)*(ph-14); if(x===L) g.moveTo(x,y); else g.lineTo(x,y); }
+    g.strokeStyle=sharp>0.5?BAD:GOOD; g.lineWidth=2; g.stroke(); g.lineWidth=1;
+    line(g,L,top+ph,W-R,top+ph,LN);
+    /* the ±3 sampled neighbours */
+    var pulse=(animFrame%7);
+    for(var s=-3;s<=3;s++){
+      var xx=mid+(s/3)*(iw/2)*0.55, yy=top+ph-curve(xx)*(ph-14);
+      var isNow=(Math.abs(s)===Math.abs(pulse-3));
+      g.beginPath(); g.arc(xx,yy,isNow?5:3.2,0,6.2832);
+      g.fillStyle=(s===0)?ACC:(isNow?OKC:'#7d8ca6'); g.fill();
+      if(s===0){ line(g,xx,yy,xx,top+ph,ACC,[3,3]); txt(g,'tuned setting',xx,top+ph+12,ACC,9.5,'center'); }
+    }
+    txt(g,sharp>0.5?'a needle — small nudges move the result a lot':'a plateau — the result survives being nudged',
+        W-R,top+14,sharp>0.5?BAD:GOOD,10,'right');
+
+    var dv=top+ph+22;
+    divider(g,W,L,R,dv,'MEASURED — spread across '+(d.nbN||'the')+' neighbours, '+pair);
+
+    /* lower: real per-metric spreads */
+    var ty=dv+22, LL=118, RR=52, iw2=W-LL-RR, rowH=(H-ty-8)/keys.length;
+    var cap=0.20, mx=Math.max(cap*1.25,worst*1.15), capX=LL+(cap/mx)*iw2;
+    g.fillStyle='rgba(240,97,106,.07)'; g.fillRect(capX,ty-4,W-RR-capX,H-ty);
+    line(g,capX,ty-4,capX,H-6,BAD,[4,4]);
+    txt(g,'cap 20%',capX+5,ty+4,BAD,9.5);
+    keys.forEach(function(kk,i){
+      var y=ty+i*rowH+rowH/2, v=d.cv[kk], w=Math.max(2,(v/mx)*iw2);
+      var col=v>=cap?BAD:(v>=0.10?OKC:GOOD);
+      rrect(g,LL,y-5,w,10,3,col);
+      txt(g,kk,LL-8,y,MUT,10,'right');
+      txt(g,(v*100).toFixed(1)+'%',LL+w+7,y,col,10);
+    });
+    return 'Every tuned parameter is shifted ±3 steps and everything re-measured. The gate reads the worst-behaved metric ('
+      +keys[0]+' at '+(worst*100).toFixed(1)+'%), not the average — one unstable metric cannot hide behind six calm ones.';
+  };
+
+  /* ── ERAS: cut the history, then measure inside each cut ── */
+  DRAW.era=function(g,W,H,p,d){
+    var E=d.eras||[]; if(!E.length) return 'No era breakdown.';
+    var L=44,R=14, iw=W-L-R, n=E.length, cw=iw/n;
+    var act=animFrame%n;
+
+    panelHead(g,W,L,R,'HISTORY IS CUT INTO '+n+' EQUAL ERAS','then the same committee is measured inside each');
+    var sy=22, sh=26;
+    E.forEach(function(e,i){
+      var x=L+i*cw;
+      g.globalAlpha=(i===act)?1:0.5;
+      rrect(g,x+2,sy,cw-4,sh,3,i===act?'#33456a':'#232d3f');
+      g.globalAlpha=1;
+      txt(g,e.a,x+cw/2,sy+sh/2,i===act?INK:'#7d8ca6',9.5,'center');
+      if(i<n-1) line(g,x+cw,sy-4,x+cw,sy+sh+4,'#4a566a');
+    });
+    txt(g,'oldest',L,sy+sh+11,'#6f7d90',9);
+    txt(g,'newest',W-R,sy+sh+11,'#6f7d90',9,'right');
+
+    var dv=sy+sh+20;
+    divider(g,W,L,R,dv,'MEASURED — edge inside each era, '+pair);
+
+    var top=dv+22, bh=H-top-30;
+    var vals=E.map(function(e){return e.sh;});
+    var hi=Math.max(1,Math.max.apply(null,vals))*1.18, lo=Math.min(0,Math.min.apply(null,vals))*1.18;
+    if(hi-lo<0.5) hi=lo+0.5;
+    var y=function(v){return top+bh-((v-lo)/(hi-lo))*bh;}, zero=y(0);
+    line(g,L,zero,W-R,zero,'#4a566a');
+    txt(g,'Sharpe 0',L-8,zero,MUT,9.5,'right');
+    var wi=vals.indexOf(Math.min.apply(null,vals));
+    E.forEach(function(e,i){
+      var x=L+i*cw+cw*0.20, w=cw*0.60;
+      var col=e.sh<0?BAD:(e.sh<0.3?OKC:GOOD);
+      g.globalAlpha=(i===act)?1:0.62;
+      rrect(g,x,zero,w,y(e.sh)-zero,3,col);
+      g.globalAlpha=1;
+      txt(g,e.sh.toFixed(2),x+w/2,y(e.sh)+(e.sh<0?12:-9),col,11,'center');
+      txt(g,e.n+' trades',x+w/2,H-10,'#6f7d90',9,'center');
+      if(i===wi){ g.strokeStyle=col; g.setLineDash([3,3]);
+        g.strokeRect(x-5,top-2,w+10,bh+4); g.setLineDash([]);
+        txt(g,'weakest',x+w/2,top-9,col,9,'center'); }
+    });
+    return 'A committee that earned everything in one era and nothing in the others is a single bet, not a strategy. '
+      +'The gate reads the weakest era — and an era with no activity at all fails outright, however good the rest look.';
+  };
+
+  /* ── LUCK: best-of-N random attempts, then where the real one lands ── */
+  DRAW.luck=function(g,W,H,p,d){
+    var srx=p.srx, sric=p.sric, N=p.sel;
+    var L=42,R=14, iw=W-L-R;
+
+    panelHead(g,W,L,R,'WHY A WINNER MUST BEAT MORE THAN ZERO','schematic — '+N.toLocaleString()+' attempts were actually counted');
+    var ph=Math.round(H*0.42), top=26;
+    /* schematic cloud of attempts; the MAX is the benchmark */
+    var rows=3, per=26, best=0, bx=0, by=0;
+    for(var r=0;r<rows;r++){
+      for(var i=0;i<per;i++){
+        var t=(Math.sin((i*12.9898+r*78.233+animFrame*1.7))*43758.5453);
+        t=t-Math.floor(t);
+        var xx=L+8+t*(iw*0.62), yy=top+8+r*(ph/rows);
+        g.beginPath(); g.arc(xx,yy,2.6,0,6.2832); g.fillStyle='#4a566a'; g.fill();
+        if(xx>best){ best=xx; bx=xx; by=yy; }
+      }
+    }
+    line(g,bx,top,bx,top+ph,OKC,[4,4]);
+    g.beginPath(); g.arc(bx,by,5,0,6.2832); g.fillStyle=OKC; g.fill();
+    txt(g,'best of them, by luck alone',bx+8,top+10,OKC,9.5);
+    txt(g,'each dot = one attempt the search made',L+8,top+ph-2,'#6f7d90',9.5);
+
+    var dv=top+ph+14;
+    divider(g,W,L,R,dv,'MEASURED — '+pair);
+
+    var base=dv+40, col=srx>0?GOOD:BAD;
+    var zx=L+iw*0.34, span=iw*0.42;
+    var xx2=zx+Math.max(-span,Math.min(span,(srx/0.35)*span));
+    line(g,zx,base-18,zx,base+18,OKC,[4,4]);
+    txt(g,'the luck benchmark',zx,base-26,OKC,9.5,'center');
+    g.lineWidth=3; g.beginPath(); g.moveTo(zx,base); g.lineTo(xx2,base);
+    g.strokeStyle=col; g.stroke(); g.lineWidth=1;
+    g.beginPath(); g.arc(xx2,base,6,0,6.2832); g.fillStyle=col; g.fill();
+    txt(g,(srx>0?'+':'')+srx.toFixed(3),xx2,base-16,col,13,'center');
+    txt(g,srx>0?'clears it':'falls short',xx2,base+18,col,10,'center');
+
+    var sy2=H-16, scol=sric>=0?GOOD:BAD;
+    txt(g,'second, independent correction (over-tuning): ',L,sy2,MUT,10.5);
+    g.font='10.5px ui-monospace,Menlo,Consolas,monospace';
+    var wl=g.measureText('second, independent correction (over-tuning): ').width;
+    txt(g,sric.toFixed(2)+(sric<0?'  →  predicts negative future performance':'  →  agrees'),L+wl,sy2,scol,10.5);
+
+    return 'Try enough variants and the best one looks good by selection alone — the tallest person in a crowd is tall partly by luck. '
+      +'The bar is how far this committee beat that benchmark; the line beneath is a second correction that can disagree.';
+  };
+
+  /* Monte-Carlo: show the PROCEDURE (schematic, animated) above the MEASURED result.
+     The block strips are a schematic of how a shuffle is built — they are not this
+     pair's bars. Only the numbers in the lower panel come from the artifact. */
+  var MCBLOCKS=[0.9,-0.4,1.5,0.3,-1.1,0.6,2.0,-0.7,0.4,1.2,-1.6,0.8,-0.3,1.7,0.5,-0.9];
+  var mcSeed=7;
+  function mcRand(){ mcSeed=(mcSeed*1103515245+12345)&0x7fffffff; return mcSeed/0x7fffffff; }
+  function mcPerm(n){
+    var a=[],i,j,t; for(i=0;i<n;i++) a.push(i);
+    for(i=n-1;i>0;i--){ j=Math.floor(mcRand()*(i+1)); t=a[i]; a[i]=a[j]; a[j]=t; }
+    return a;
+  }
+  function mcStrip(g,x,y,w,h,order,dim){
+    var n=order.length, bw=w/n, mx=2.1;
+    for(var i=0;i<n;i++){
+      var v=MCBLOCKS[order[i]], bh=Math.max(2,(Math.abs(v)/mx)*(h/2));
+      var col=v>=0?GOOD:BAD;
+      g.globalAlpha=dim?0.55:1;
+      g.fillStyle=col;
+      g.fillRect(x+i*bw+1, v>=0? y+h/2-bh : y+h/2, bw-2, bh);
+      g.globalAlpha=1;
+    }
+    line(g,x,y+h/2,x+w,y+h/2,'#3a4657');
+  }
+
+  DRAW.mc=function(g,W,H,p,d){
+    var m=d.mc; if(!m||m.sims==null) return 'No shuffle test for this pair.';
+    var L=40,R=40, iw=W-L-R;
+
+    /* ── upper panel: the procedure, schematic ── */
+    txt(g,'HOW ONE SHUFFLE IS BUILT',L,12,MUT,9.5);
+    txt(g,'schematic — not this pair’s bars',W-R,12,'#6f7d90',9.5,'right');
+
+    var sh=26;
+    txt(g,'real',L-8,24+sh/2,INK,10,'right');
+    mcStrip(g,L,24,iw,sh,[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15],false);
+
+    /* arrow */
+    var ay=24+sh+9;
+    line(g,L+iw/2,ay-2,L+iw/2,ay+8,MUT);
+    g.beginPath(); g.moveTo(L+iw/2-4,ay+6); g.lineTo(L+iw/2+4,ay+6); g.lineTo(L+iw/2,ay+12);
+    g.closePath(); g.fillStyle=MUT; g.fill();
+    txt(g,'same blocks, new order — drift kept, sequence destroyed',L+iw/2+10,ay+6,MUT,9.5);
+
+    var ry=ay+18;
+    for(var r=0;r<3;r++){
+      mcStrip(g,L,ry+r*(sh-4),iw,sh-6,mcPerm(16),true);
+      txt(g,'#'+(r+1),L-8,ry+r*(sh-4)+(sh-6)/2,'#6f7d90',9.5,'right');
+    }
+    txt(g,'⋮  '+m.sims+' in total',L-8,ry+3*(sh-4)+2,'#6f7d90',9.5,'right');
+
+    /* ── divider ── */
+    var dv=ry+3*(sh-4)+14;
+    line(g,L-30,dv,W-R+30,dv,LN);
+    txt(g,'MEASURED — '+pair,L,dv+13,MUT,9.5);
+
+    /* ── lower panel: real values ── */
+    var base=dv+46;
+    var lo=Math.min(m.real,m.null)*0.55, hi=Math.max(m.real,m.null)*1.30;
+    if(hi<=lo) hi=lo+1;
+    var x=function(v){return L+((v-lo)/(hi-lo))*iw;};
+    line(g,L,base,W-R,base,LN);
+    var beat=m.real>m.null;
+
+    /* shaded span between the two, showing the gap */
+    var xa=x(m.null), xb=x(m.real);
+    g.fillStyle=beat?'rgba(49,196,141,.13)':'rgba(240,97,106,.13)';
+    g.fillRect(Math.min(xa,xb),base-16,Math.abs(xb-xa),32);
+
+    [['average of the '+m.sims+' shuffles',m.null,MUT,-1],['the real committee',m.real,beat?GOOD:BAD,1]].forEach(function(e){
+      var xx=x(e[1]);
+      line(g,xx,base-16,xx,base+16,e[2]);
+      g.beginPath(); g.arc(xx,base,5,0,6.2832); g.fillStyle=e[2]; g.fill();
+      txt(g,e[1].toFixed(3),xx,base+(e[3]<0?-26:26),e[2],11.5,'center');
+      txt(g,e[0],xx,base+(e[3]<0?-39:39),MUT,9.5,'center');
+    });
+
+    /* dot strip: one dot per simulation, filled = actually beaten */
+    var k=Math.round((m.pos||0)*m.sims), dy=H-16, dw=Math.min(14,iw/m.sims);
+    var sx=L+(iw-(m.sims-1)*dw)/2;
+    for(var i=0;i<m.sims;i++){
+      g.beginPath(); g.arc(sx+i*dw,dy,4,0,6.2832);
+      g.fillStyle=i<k?(beat?GOOD:OKC):'#39445a'; g.fill();
+    }
+    txt(g,'beat '+k+' of '+m.sims,sx-10,dy,k>=m.sims/2?GOOD:BAD,10.5,'right');
+
+    return 'Blocks of consecutive days are resampled into a new order '+m.sims+' times, so the overall drift survives '
+      +'but every pattern the committee might have learned is destroyed. '
+      +(beat?'The real score lands above the shuffled average — the edge is not just sequence luck.'
+            :'The real score lands BELOW the shuffled average — this committee cannot outperform its own scrambled history.');
+  };
+
+  function gauges(g,W,H,p,metrics,title){
+    var keys=['Sortino','Profit Factor','Omega','Sharpe'];
+    var L=104,R=58,T=22,B=14, iw=W-L-R, rowH=(H-T-B)/keys.length;
+    var cleared=0;
+    keys.forEach(function(k,i){
+      var v=metrics[k], fl=FLOORS[k], y=T+i*rowH+rowH/2;
+      var mx=fl*2.4, ok=(v!=null&&v>=fl); if(ok) cleared++;
+      var fx=L+(fl/mx)*iw;
+      g.fillStyle='rgba(255,255,255,.04)'; g.fillRect(L,y-8,iw,16);
+      var w=(v==null)?0:Math.max(2,Math.min(iw,(v/mx)*iw));
+      rrect(g,L,y-8,w,16,4,ok?GOOD:BAD);
+      line(g,fx,y-12,fx,y+12,OKC);
+      txt(g,k,L-8,y,MUT,10.5,'right');
+      txt(g,(v==null?'—':(v>=100?v.toFixed(0):v.toFixed(2))),L+iw+8,y,ok?GOOD:BAD,10.5);
+      if(i===0) txt(g,'amber tick = the floor',L+iw+8,T-10,MUT,9.5,'right');
+    });
+    txt(g,title+'  —  cleared '+cleared+' of 4',L,T-10,cleared>=3?GOOD:BAD,11);
+    return cleared;
+  }
+
+  DRAW.floors=function(g,W,H,p,d){
+    var c=gauges(g,W,H,p,d.full||{},'Full history');
+    return 'At least three of these four must clear on several views of the data. '
+      +(c>=3?'Here '+c+' clear.':'Only '+c+' clear.')+' Bars are capped for display.';
+  };
+  DRAW.lockfloors=function(g,W,H,p,d){
+    var c=gauges(g,W,H,p,d.lock||{},'The sealed six months');
+    return 'The same four floors, measured on data the search never saw. '
+      +'Note how few trades produced these numbers — a high score on a handful of trades is not the same as evidence.';
+  };
+
+  var plotTimer=null, animFrame=0;
+  function stopPlot(){ if(plotTimer){ clearInterval(plotTimer); plotTimer=null; } }
+
+  function renderPlot(s,p){
+    var cv=el('tj-plot'), cap=el('tj-plotcap');
+    var g=cv.getContext('2d'), W=cv.width, H=cv.height;
+    g.clearRect(0,0,W,H);
+    var d=TJD[pair]||{};
+    var c='';
+    try{ c=DRAW[s.plot](g,W,H,p,d)||''; }
+    catch(e){ txt(g,'plot unavailable',W/2,H/2,MUT,12,'center'); }
+    cap.innerHTML=c;
+  }
+
+  function drawPlot(s,p){
+    var cv=el('tj-plot'), cap=el('tj-plotcap');
+    if(!cv) return;
+    stopPlot();
+    if(!s.plot||!DRAW[s.plot]){ cv.className='tj-plot hide'; cap.innerHTML=''; return; }
+    cv.className='tj-plot';
+    var want=s.plotH||200;
+    if(cv.height!==want) cv.height=want;
+    animFrame=0;
+    renderPlot(s,p);
+    if(s.anim){
+      plotTimer=setInterval(function(){
+        if(S[cur]!==s){ stopPlot(); return; }
+        animFrame++; renderPlot(s,P[pair]);
+      },s.animMs||1200);
+    }
+  }
+
+  var FUNNEL=[{n:34,l:'indicators'},{n:13,l:'committees built'},{n:3,l:'finalists'},{n:1,l:'adopted'}];
+  var cur=0,pair='BNBETH',timer=null;
+  function el(id){return document.getElementById(id);}
+  var rail=el('tj-rail'),pairsEl=el('tj-pairs');
+
+  ORDER.forEach(function(k){
+    var b=document.createElement('button');b.type='button';b.textContent=k;
+    b.onclick=function(){stop();pair=k;paint();};
+    pairsEl.appendChild(b);
+  });
+  S.forEach(function(s,i){
+    var b=document.createElement('button');b.type='button';b.textContent=String(i+1);
+    b.title=s.t;
+    b.onclick=function(){stop();cur=i;paint();};
+    rail.appendChild(b);
+  });
+
+  function stop(){if(timer){clearInterval(timer);timer=null;el('tj-play').innerHTML='&#9654; Play the whole journey';}}
+
+  function paint(){
+    var s=S[cur],p=P[pair];
+    Array.prototype.forEach.call(pairsEl.children,function(b){b.className=(b.textContent===pair)?'on':'';});
+    Array.prototype.forEach.call(rail.children,function(b,i){b.className='act'+S[i].act+((i===cur)?' on':'');});
+
+    el('tj-outcome').innerHTML='ends as <b style="color:'+((p.tier==='UNSTABLE')?'var(--bad)':'var(--ok)')+'">'+p.verdict+' &middot; '+p.tier+'</b>';
+
+    var seen=s.sees||[],open=(s.lock==='open');
+    el('tj-bar-is').className='tj-seg-bar tj-is'+((seen.indexOf('is')<0)?' dim':'');
+    el('tj-bar-oos').className='tj-seg-bar tj-oos'+((seen.indexOf('oos')<0)?' dim':'');
+    var lk=el('tj-bar-lock');
+    lk.className='tj-seg-bar tj-lock'+(open?' open':'')+((seen.indexOf('lock')<0)?' dim':'');
+    lk.innerHTML=open?'<span class="tj-lockicon">&#128275;</span><span>Lockbox &middot; opened</span>':'<span class="tj-lockicon">&#128274;</span><span>Lockbox &middot; 6 months</span>';
+    el('tj-seen').innerHTML=(seen.length===0)
+      ? ((s.lock==='seal')?'nothing yet &mdash; the holdout is being carved off':'no price data &mdash; bookkeeping only')
+      : seen.map(function(x){return (x==='is')?'in-sample':(x==='oos')?'out-of-sample':'the lockbox';}).join(' + ');
+
+    var ACT={A:'ACT A &middot; PREPARE THE DATA',B:'ACT B &middot; SEARCH',C:'ACT C &middot; TEST IT',D:'ACT D &middot; JUDGE IT'};
+    el('tj-act').innerHTML=ACT[s.act];
+    el('tj-title').textContent=(cur+1)+'. '+s.t;
+    el('tj-plain').innerHTML=s.plain;
+    el('tj-tech').innerHTML=s.tech;
+    el('tj-code').innerHTML=s.code;
+
+    var m=s.m(p);
+    el('tj-measure').className='tj-measure '+(m.s||'info');
+    el('tj-measure').innerHTML='<span class="lbl">'+m.lbl+'</span>'+m.v;
+    var vd=el('tj-vd');
+    if(m.s==='ok'){vd.className='tj-verdict ok';vd.textContent='PASSES';}
+    else if(m.s==='warn'){vd.className='tj-verdict warn';vd.textContent='HELD BACK';}
+    else if(m.s==='bad'){vd.className='tj-verdict bad';vd.textContent='FAILS';}
+    else{vd.className='tj-verdict info';vd.textContent='SETUP';}
+
+    var active=(s.fn||null),fh='';
+    FUNNEL.forEach(function(r){
+      var on=(active!==null&&r.n===active),past=(active!==null&&r.n>active);
+      fh+='<div class="tj-frow'+(on?' on':(past?' past':''))+'"><span class="tj-fnum">'+r.n+'</span><span class="tj-fbar" style="width:'+Math.max(6,(r.n/34)*100)+'%"></span><span>'+r.l+'</span></div>';
+    });
+    el('tj-funnel').innerHTML=fh;
+    el('tj-funnel-note').innerHTML=active?('This stage works on <b>'+active+'</b>.'):'Not a narrowing stage.';
+
+    drawPlot(s,p);
+    el('tj-count').innerHTML='stage '+(cur+1)+' of '+S.length;
+    el('tj-prev').disabled=(cur===0);
+    el('tj-next').disabled=(cur===S.length-1);
+  }
+
+  el('tj-prev').onclick=function(){stop();if(cur>0){cur--;paint();}};
+  el('tj-next').onclick=function(){stop();if(cur<S.length-1){cur++;paint();}};
+  el('tj-play').onclick=function(){
+    if(timer){stop();return;}
+    if(cur>=S.length-1){cur=0;}
+    this.innerHTML='&#10073;&#10073; Pause';
+    paint();
+    timer=setInterval(function(){
+      if(cur>=S.length-1){stop();return;}
+      cur++;paint();
+    },2800);
+  };
+
+  paint();
+})();
+</script>
+
 
 <h2 class="section" id="mathematics"><span class="n">M</span>The mathematics, in full</h2>
 <p class="lede">Nothing below is hand-wavy: each quantity is shown as the exact formula the code computes, then made draggable so you can watch the math move. Aimed at any engineer — rigorous, not deep.</p>
@@ -2212,14 +3006,33 @@ promise not to look; the data simply is not there.</p>
 <b>write-once</b> holdout block into the robustness JSON: the edge floors cleared on genuinely unseen data, the trade count, and the regime
 context. That number is the only per-TPI statistic in the system that is free of selection bias at birth.</p>
 <ul>
-  <li><b>What it never touches:</b> the FEP verdict, <code>_stable</code>, <code>_perf_rank</code>, <code>ship_ok</code>, the selection sort.
-  A TPI cannot be chosen <em>because</em> its lockbox looks good — that would silently convert the test set into a validation set.</li>
+  <li><b>What it never touches — the SELECTION side, still true:</b> <code>_stable</code>, <code>_perf_rank</code>, the selection sort, the
+  beam, the tuner and the walk-forward folds. A TPI cannot be <em>chosen</em> because its lockbox looks good — that would silently convert
+  the test set into a validation set. The data is truncated before any of those run, and only the holdout check reads the full frame.</li>
+  <li><b>What it now DOES touch — the VERDICT, since E6 (2026-07-17):</b> <span style="background:#fdf4e3;padding:1px 4px;border-radius:3px">
+  corrected 2026-07-18.</span> This section previously said the lockbox touches the verdict "never". That became false when E6 shipped:
+  a committee capped at BORDERLINE <em>solely</em> by the WFE-uncertified cap is upgraded to ROBUST when the lockbox shows an edge and the
+  luck-null is positive (<code>tpi_autogen.py</code>, E6 block). The ledger's <code>sr_excess_over_null</code> is read there too, so the
+  "nothing reads the ledger back" line below is likewise narrowed to the selection side. The distinction that still holds — and that is
+  the actual Goodhart protection — is that the lockbox is never an <em>input the search can optimize against</em>: E6 fires strictly after
+  the winner is chosen, and the size-descending adoption test is provably invariant to its result. Certification is a <em>read</em> of the
+  holdout, not a <em>target</em> for it.</li>
   <li><b>Exemptions:</b> assets with &lt; <code>LOCKBOX_MIN_HISTORY_YEARS = 2</code> of history, and mixed-maturity baskets whose
   <em>shortest</em> member is too young (truncating would starve tuning). <code>LOCKBOX_MONTHS = 0</code> disables the mechanism.</li>
   <li><b>Cost:</b> newly generated TPIs tune on data ending ~6 months ago. That is the price of owning a test set.</li>
-  <li><b>Honest limitation:</b> at ~12&ndash;20 trades/yr, a 6-month lockbox holds only a handful of trades — it can <em>screen</em> a TPI for
-  gross overfit at birth, but it cannot <em>certify</em> an edge by itself. Certification power lives at the portfolio level and in the
-  forward channels below.</li>
+  <li><b>Honest limitation — and the evidence floor it now enforces:</b> at ~12&ndash;20 trades/yr, a 6-month lockbox holds only a handful of
+  trades. Measured across the book: a <b>median of 2</b> lockbox trades, range 0&ndash;6. As first shipped, E6 had no minimum-evidence
+  floor, and it certified BNBETH on <b>3</b> trades in a chop regime after refusing it on 9 walk-forward trades — one thin sample excusing
+  another. Since the 2026-07-18 assessment, certification additionally requires <code>LOCKBOX_CERT_MIN_TRADES</code> (10) and a non-negative SRIC
+  alongside the positive luck-null. Be precise about what that 10 is: it is <b>not fitted</b> (any floor &ge; 4 would have demoted BNBETH,
+  so it is strictly more conservative than an outcome-engineered choice) but it is <b>not yet derived</b> either &mdash; it is a
+  rule-of-thumb, and it is 3&times; looser than this system's own <code>WFE_MIN_TRADES = 30</code> for the gate E6 substitutes for. At the
+  book's current trade counts that floor certifies nobody, and with a 6-month lockbox against the cadence ceiling it may be
+  <em>structurally</em> unreachable rather than merely unreachable today. So E6 is presently a dead path and that is an open design
+  question (lengthen the lockbox, derive the floor from the cadence band, or accept that the holdout screens but never certifies).
+  Withholding is still the right default while it is undecided: the book is substance-limited, and the answer to "not enough evidence" is
+  to withhold the badge rather than lower the bar. Withheld certifications are recorded in
+  <code>fep.lockbox_certification_withheld</code> rather than silently dropped.</li>
 </ul>
 
 <h3 id="evidence-ledger">14b &middot; The trial ledger — counting what the search tried</h3>
@@ -2240,8 +3053,11 @@ a thread-local ledger counts every stage of the search and is snapshotted into e
   <li><b><code>sric</code></b> — the Paulsen&ndash;S&ouml;hl Sharpe Information Criterion (k tuned parameters, T years): the
   <em>within-trial</em> optimization-bias bound, complementing the <em>across-trial</em> null above. Neither alone captures total overfit;
   both point the same direction.</li>
-  <li><b>Report-only, enforced:</b> nothing reads the ledger back — no verdict, gate, selection key or ship decision consumes it
-  (<code>tpi_autogen.py</code> ledger block). Thread-local so dashboard display evaluations never contaminate a generation's counts.</li>
+  <li><b>Report-only on the SELECTION side, enforced:</b> no gate, selection key or ship decision consumes the ledger
+  (<code>tpi_autogen.py</code> ledger block). Thread-local so dashboard display evaluations never contaminate a generation's counts.
+  <span style="background:#fdf4e3;padding:1px 4px;border-radius:3px">Corrected 2026-07-18:</span> the ledger's
+  <code>sr_excess_over_null</code> (and, since the assessment fix, <code>sric</code>) <em>are</em> read by the E6 certification step, which
+  sets a verdict. "Nothing reads it back" was true when written and is no longer.</li>
 </ul>
 <div class="note">Why the retro-fitted numbers were only estimates: the pre-ledger book (everything generated before 2026-07-11) has no
 recorded N or cross-trial dispersion, so the Phase-A probe (<code>reports/TPI_HONESTY_2026-07-11.html</code>) had to bracket N at 30&ndash;120
@@ -2260,7 +3076,7 @@ train &rarr; validation &rarr; <b>test</b> &rarr; <b>live monitoring</b> pipelin
 </tbody>
 </table>
 <p>The honest claim hierarchy this enforces: an in-sample Sharpe is a <em>selection</em> statistic (read it against the ledger's null); a
-lockbox pass is <em>one</em> unbiased observation (screening, not certification); only the forward channels — above all the portfolio one —
+lockbox pass is <em>one</em> unbiased observation (screening, and — only above the E6 evidence floor — certification); only the forward channels — above all the portfolio one —
 accumulate evidence that can genuinely certify. And per &sect;7b, all three channels are currently <b>gross of cost</b>; the net-of-cost
 verdict layer is the open Tier-1.1 track.</p>
 <div class="note tiny">Full design rationale and the FRAGILE deployability policy that accompanies these channels:
@@ -2305,6 +3121,51 @@ this layer in its legend and separates the calls: <b>Verdict</b> (edge + evidenc
 structural gates guaranteeing both are computed on committees worth judging.</p>
 
 <!-- ============================ LOG — JULY 2026 CAMPAIGN CHANGELOG ============================ -->
+<h2 class="section" id="tier-ladder"><span class="n">3b</span>The tier badge — the label you actually read on the dashboard</h2>
+
+<p class="lede">Every committee wears <b>two</b> labels, and they answer different questions. &sect;3's <b>verdict</b>
+(ROBUST / BORDERLINE / FRAGILE) asks <em>"is the evidence good enough?"</em>. The <b>tier badge</b> below asks
+<em>"is it stable first, and does it also have an edge?"</em> &mdash; stability-first, per the operator directive. The tier is
+the more prominent badge on the dashboard, so it is the one you read most, and until the 2026-07-18 assessment it was the one
+label this document never defined. It lives in <code>fep_robustness.stability_first_tier</code>.</p>
+
+<table>
+<thead><tr><th>Tier</th><th>Plain meaning</th><th>What it requires</th></tr></thead>
+<tbody>
+<tr><td><b style="color:#c0392b">UNSTABLE</b></td>
+  <td>Do not trust this committee. Its behaviour is not reproducible.</td>
+  <td>Any hard stability axis tripped: walk-forward instability, parameter CoV over cap, time-inconsistency, or any of
+  <b>MC significance, coherence, turnover, cross-asset</b> in the critical list. Checked <em>first</em> &mdash; an unstable
+  committee can never earn a better tier no matter how good its edge looks.</td></tr>
+<tr><td><b>STABLE&#8209;NO&#8209;EDGE</b></td>
+  <td>Reproducible, but there is no edge to speak of.</td>
+  <td>Stable on every axis, but fewer than <code>EDGE_GREEN_MIN</code> (3) of the four edge floors clear.</td></tr>
+<tr><td><b>STABLE&#8209;THIN</b></td>
+  <td>Reproducible and shows an edge, but on too little evidence to lean on.</td>
+  <td>Stable + edge present, but the trade count is below the certifiability bar &mdash; the "low N" case.</td></tr>
+<tr><td><b>STABLE&#8209;EDGE</b></td>
+  <td>Reproducible with a real edge on the full history &mdash; but the <em>recent</em> evidence does not confirm it.</td>
+  <td>Stable + &ge; 3 of 4 edge floors, but it fails the crown's extra requirement below.</td></tr>
+<tr><td><b style="color:#1e8a5a">STABLE&#8209;ROBUST</b></td>
+  <td>The crown. Reproducible, with an edge that also holds up on data the tuning did not shape.</td>
+  <td>Everything in STABLE-EDGE <em>plus</em> both <b>sweep-worst</b> and <b>out-of-sample</b> edge greens
+  &ge; <code>EDGE_GREEN_MIN</code>, and both must be <b>measured</b> &mdash; an unmeasured axis cannot crown.</td></tr>
+</tbody>
+</table>
+
+<p><b>Why the crown gained that last requirement.</b> Until 2026-07-18 the crown read only full-period greens plus the luck
+null, so a committee whose <em>recent</em> edge had vanished could still wear STABLE-ROBUST while the older verdict underneath
+said FRAGILE &mdash; the newer, more prominent badge was quietly <em>less</em> demanding than the one it superseded. Adding the
+sweep and out-of-sample requirement demoted <b>7 of 24</b> crowns (BNBPAXG, SOLBNB, SOLDOGE, SOLPAXG, SOLXRP, SUIXRP, TSLAMU);
+tiers moved 24/9/7/11/4 &rarr; 17/9/14/11/4. After it, <b>no crowned committee sits on a FRAGILE verdict</b>, which is the
+coherence property the badge is supposed to carry.</p>
+
+<p><b>Reading the two labels together.</b> The tier does <em>not</em> read the verdict &mdash; they are computed
+independently, so a combination like STABLE-ROBUST + BORDERLINE is normal rather than contradictory (17 committees sit there
+today). It usually means the committee is stable with a genuine edge, but walk-forward could not <em>certify</em> it because a
+slow long-only strategy books too few out-of-sample trades. Stability is a MUST; certification is evidence the book may simply
+not have yet.</p>
+
 <h2 class="section" id="voting"><span class="n">12d</span>When does a pair vote? — the conditions, in plain terms</h2>
 
 <p>The rotation is a round-robin: every pair of assets is <b>one match</b> (9 crypto majors &rarr; 36 matches), and the
@@ -2371,10 +3232,14 @@ program in future.</p>
   <td>Labelled yield <em>does</em> respond &mdash; turning cadence off halves it, and the current settings are already
   at the maximum. But <b>true robustness (lockbox) is 1 in 5 in every single row, and always the same pair</b>. Settings
   reshuffle which pairs get the STABLE&#8209;ROBUST label; they never change who is actually robust.</td></tr>
-<tr><td><b>D14 &mdash; is there an in-sample tell?</b></td>
+<tr style="background:#fdf4e3"><td><b>D14 &mdash; is there an in-sample tell?</b><br>
+  <span style="color:#b9770e;font-weight:700;font-size:12px">UNRECORDED &mdash; DO NOT CITE</span></td>
   <td>Correlate each committee's era-spread measured in-sample against its era-spread on the full window.</td>
-  <td>Correlation &asymp; <b>0.00</b>. There is no honest in-sample signal a selection rule could use: era-robustness
-  only reveals itself out-of-sample.</td></tr>
+  <td><b>Flagged by the 2026-07-18 assessment:</b> this row reports a correlation of &asymp; 0.00, but <b>D14 has no entry in
+  <code>reports/SEARCH_TUNING_2026-07-17.md</code></b> &mdash; the log runs D1&ndash;D13, then jumps to D15. No design, sample size,
+  or artifact was ever recorded, so the number cannot be checked or reproduced. It was nonetheless being used as one quarter of the
+  basis for closing the search-tuning programme. <b>Treat the "no in-sample tell" conclusion as UNSUPPORTED</b> until the experiment
+  is re-run and written up, or strike this row. The other three experiments in this table are recorded and stand on their own.</td></tr>
 </tbody>
 </table>
 
@@ -2502,6 +3367,30 @@ compound annual growth rate, the yearly growth pace.</p>
 <table>
 <thead><tr><th>Date</th><th>Change</th><th>Why</th><th>Evidence</th></tr></thead>
 <tbody>
+<tr style="background:#fdf4e3"><td>2026&#8209;07&#8209;18</td>
+  <td><b>Assessment fixes &mdash; the holdout now needs a minimum of evidence before it may certify.</b> Lockbox
+  certification additionally requires <code>LOCKBOX_CERT_MIN_TRADES</code> (10) <em>and</em> a non-negative SRIC alongside the
+  positive luck-null; the enabling flag now fails <em>closed</em>. Also: the dead "Watching (fwd test)" decay badge was made
+  reachable; the search side stopped awarding a free edge-green for <code>+inf</code>; the admission exam's warm-up test now
+  fails closed and stops mis-handling categorical parameters; &sect;14 and the D14/D16 records were corrected.</td>
+  <td>E6 as first shipped had <b>no minimum-evidence floor</b>: it refused BNBETH on 9 walk-forward trades as too thin, then
+  certified it on <b>3</b> lockbox trades in a chop regime &mdash; one thin sample excusing another &mdash; while that same
+  file's SRIC read <b>&minus;1.86</b> (expected out-of-sample Sharpe strongly negative) and was never consulted.</td>
+  <td>Assessment <code>reports/ASSESSMENT_2026-07-18.html</code>. Effect: BNBETH returns to BORDERLINE, so the book is
+  <b>0 ROBUST / 21 BORDERLINE / 34 FRAGILE</b>. The 10-trade floor is <em>not fitted</em> (any value &ge; 4 demotes it) but is
+  <em>not yet derived</em> either &mdash; see Open Questions. The decay badge revealed <b>9</b> committees retaining under half
+  their tuned edge (PAXGHYPE 0%) that had all been displaying "Ready".</td></tr>
+<tr style="background:#fdecea"><td>2026&#8209;07&#8209;18</td>
+  <td><b>REVERTED the same day: muting the stocks sleeve's ungated votes.</b> Vote-muting was extended from "refused" to
+  "refused <em>or</em> UNSTABLE-tier" (kept, crypto only &mdash; it adds SUIDOGE) and <code>MUTE_REFUSED_VOTES_STOCKS</code> was
+  turned on (<b>reverted</b>). QQQ was never muted: a macro risk gate can fail <em>dangerous</em> rather than safe.</td>
+  <td>The stability directive says an unstable committee must not vote, and the old "measured harmful" label on this setting
+  provably overstated its evidence (a best-of-2 selected estimate). But <b>weak evidence is a reason to re-measure, not a
+  licence to flip the switch</b> &mdash; and re-measurement over a longer window reproduced the original direction, worse.</td>
+  <td>Measured 2016&ndash;2026: max drawdown <b>&minus;50.0% &rarr; &minus;56.7%</b>, volatility 62.3% &rarr; 64.4%, <b>cash
+  exposure unchanged</b>. The sleeve is winner-takes-all, so muting <em>cannot route to cash</em>; it silences 4 of DELTA's 5
+  matchups and hands the sleeve to MSTR on input-order tie-break. Concentration, not de-risking. Prerequisites before
+  revisiting: fix the tie-break and the disenfranchisement, or give the sleeve a cash route &mdash; then measure.</td></tr>
 <tr><td>2026&#8209;07&#8209;17</td>
   <td><b>Trade floor made proportional to each ratio's own history</b> (was a flat 35 above ~3 years), with the
   long-only halving corrected: a long-only book books about <em>half</em> the trades of the long/short strategies the
