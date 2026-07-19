@@ -136,6 +136,7 @@ canvas{max-width:100%;background:transparent;border-radius:8px}
   <a href="#twoaxis">1 · Robustness vs Stability</a>
   <a href="#floors">2 · The edge floors</a>
   <a href="#verdict" class="part">3 · Live verdict calculator &#9654;</a>
+  <a href="#tier-ladder">3b · The tier badge you read on the dashboard</a>
   <a href="#stability">4 · Stability = the FRAGILE floor</a>
   <a href="#wfe">5 · Conditional walk-forward</a>
   <a href="#cov">6 · Parameter CoV</a>
@@ -3559,6 +3560,46 @@ the measurement said no.</p>
 <p class="muted tiny">The affirmed decisions of &sect;13 record what we committed to. This section records the opposite,
 with the same discipline: the places where the current design is known to be provisional, fitted, or unproven. Nothing
 here is hidden in a footnote on purpose.</p>
+
+<div class="aff"><div class="d">OPEN &middot; 2026-07-18 &middot; the certification path may now be permanently dead</div><h4>The lockbox evidence floor is not fitted &mdash; but it is not derived either, and it may have closed E6 for good.</h4>
+  <p class="tiny" style="margin:0">Certification now requires <code>LOCKBOX_CERT_MIN_TRADES = 10</code>. That number is
+  <b>not fitted</b> (any value &ge; 4 would have demoted the one affected committee, so 10 is strictly more conservative than
+  outcome-engineering) but it is <b>not derived</b> either &mdash; it is a rule-of-thumb, and it is <b>3&times; looser</b> than
+  this system's own <code>WFE_MIN_TRADES = 30</code> for the very gate E6 substitutes for. Worse, it may be structurally
+  unreachable rather than merely unreached: with a 6-month lockbox against the cadence ceiling, the book's busiest committee
+  produces <b>6</b> lockbox trades, so 10 needs ~1.7&times; that while the gate allows ~1.4&times;. <b>Three honest options</b>,
+  none chosen: lengthen <code>LOCKBOX_MONTHS</code>; derive the floor from the cadence band (or from Bailey &amp; L&oacute;pez de
+  Prado minimum track record length, bibliography [B3]); or accept that the holdout <em>screens but never certifies</em> and
+  say so. Until then the badge is withheld, which is the right default for "not enough evidence" &mdash; but a dead code path
+  should not be carried as though it were live.</p></div>
+
+<div class="aff"><div class="d">OPEN &middot; 2026-07-18 &middot; deliberate asymmetry, unmeasured</div><h4>The two halves of the search still read <code>+inf</code> in opposite directions.</h4>
+  <p class="tiny" style="margin:0">A window with no losing trade gives Profit Factor <code>+inf</code>. The discrete edge count
+  (<code>is_edge</code>, the primary sort key) now treats that as <b>unmeasurable</b> &mdash; a free green there would jump a
+  trade-starved candidate to the front of the field. The blended objective <code>_score</code> still treats it as
+  <b>best-case</b>, capped at 10.0. These are defensibly different (a bounded continuous score versus a discrete gate on a
+  lexicographic key), and the asymmetry is documented in both places. But the underlying fact is uncomfortable: a real
+  <code>+inf</code> means <b>1&ndash;4 trades</b>, so even the bounded 10.0 mildly rewards starvation. Changing it moves the main
+  search objective, so it must be <b>measured</b> before it is edited &mdash; deliberately not done as part of an assessment
+  fix.</p></div>
+
+<div class="aff"><div class="d">OPEN &middot; 2026-07-18 &middot; measured, reverted, prerequisites known</div><h4>The stability directive is still unimplemented on the stocks sleeve &mdash; and cannot be implemented as-is.</h4>
+  <p class="tiny" style="margin:0">The directive says an unstable committee must not vote. On crypto that is now enforced by
+  tier as well as by refusal. On <b>stocks it is not</b>, and the obvious fix was tried and reverted: muting deepened max
+  drawdown <b>&minus;50.0% &rarr; &minus;56.7%</b> with <b>cash exposure unchanged</b>. The sleeve is winner-takes-all, so a
+  muted vote cannot become cash &mdash; it only deletes matchups from one name's scorecard, silencing 4 of DELTA's 5 matchups
+  and handing the sleeve to MSTR on an input-order tie-break. So the honest position is: <b>the directive is right and the
+  mechanism is wrong.</b> Fix the tie-break and the disenfranchisement asymmetry, or give the sleeve a route to cash; then
+  measure again. Meanwhile the pane's red not-rebuilt warning carries the disclosure that muting was supposed to carry.</p></div>
+
+<div class="aff"><div class="d">OPEN &middot; 2026-07-18 &middot; four shipping indicators fail the new exam</div><h4>The admission exam has no enforcement path, and was never run against the incumbents.</h4>
+  <p class="tiny" style="margin:0">The exam screens newcomers for look-ahead, warm-up fabrication and reachability, and its
+  warm-up test now fails <em>closed</em> rather than passing an indicator that crashed. But it only prints &mdash; nothing
+  imports it, and by default it skips indicators already in the pool. Run against the 52 pooled indicators, <b>5 fail and 4 are
+  shipping</b>: PSAR (8 committees), MACD (5), ST (4), KASE (3). Independently, the live dashboard logs
+  <code>SuperTrend produced no usable value over the whole frame &mdash; the committee is voting with 3 of 4 children, so its
+  values are not the certified ones</code>, which is the same indicator failing in production right now. Either the exam's bar
+  applies to the children already moving money, or it is a document about newcomers only &mdash; it should not be ambiguous.</p></div>
 
 <div class="aff"><div class="d">OPEN &middot; 2026-07 &middot; theoretical — VERIFIED not occurring (2026-07-15)</div><h4>The dead-slice floor <em>could</em> punish a macro gate for doing its job — checked: it has not.</h4>
   <p class="tiny" style="margin:0">The time-consistency gate demands that a strategy make money in every stretch of history
