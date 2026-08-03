@@ -507,10 +507,10 @@ the rest of the document becomes a reference rather than a narrative.</p>
     m:function(p){return {lbl:'Reserved and sealed',v:'the last <b>6 months</b> &mdash; opened once, at stage 15',s:'info'};}},
 
    {act:'A',t:'Split past from future',sees:['is','oos'],
-    plain:'What remains is split in two. The older three quarters are where committees are built and tuned. The newer quarter is held back so the result can be checked on data the tuner never saw.',
-    tech:'In-sample fraction 0.75. The out-of-sample tail is used for reporting and edge-persistence checks; a 2026-07-16 fix removed it from the candidate-selection sort so it can judge without also selecting.',
-    code:'tpi_autogen.py:2763 &middot; is_frac = 0.75',
-    m:function(p){return {lbl:'Split',v:'<b>75%</b> in-sample &nbsp;/&nbsp; <b>25%</b> out-of-sample',s:'info'};}},
+    plain:'What remains is split in two. For the ratio-pair committees that make up the book, the older two-thirds are where committees are built and tuned, and the newer third is held back so the result can be checked on data the tuner never saw. (Older single-asset runs used a three-quarter / one-quarter split, and each report stamps the fraction it actually used.)',
+    tech:'In-sample fraction resolves conditionally: 0.65 (config.SLOW_WF_IS_FRAC) for ratio-pair TPIs under LONG_ONLY_SCORING, else 0.75 &mdash; each artifact stamps its own is_frac. The out-of-sample tail is used for reporting and edge-persistence checks; a 2026-07-16 fix removed it from the candidate-selection sort so it can judge without also selecting.',
+    code:'tpi_autogen.py:2731-2734 (resolution) &middot; :2781-2783 (split)',
+    m:function(p){return {lbl:'Split',v:'<b>65%</b> in-sample &nbsp;/&nbsp; <b>35%</b> out-of-sample <span class="muted tiny">(ratio pairs; 75/25 otherwise)</span>',s:'info'};}},
 
    {act:'B',t:'Audition every indicator alone',sees:['is'],fn:34,
     plain:'Each indicator in the pool is tuned on its own, to see whether it can say anything useful about this ratio at all. Any that can only be tuned into a flat line &mdash; never changing its vote &mdash; is struck out before committees are formed.',
@@ -615,7 +615,7 @@ the rest of the document becomes a reference rather than a narrative.</p>
 
    {act:'D',t:'The final label',sees:['is','oos','lock'],lock:'open',fn:1,
     plain:'Two labels are stamped. The <em>verdict</em> says how much the evidence proves. The <em>tier</em> says how the committee behaves &mdash; and stability comes first, because an unstable committee must never be deployed however good its returns look.',
-    tech:'stability_first_tier: STABLE-ROBUST, STABLE-EDGE, STABLE-THIN, STABLE-NO-EDGE, UNSTABLE. Since 2026-07-18 the crown additionally requires recent out-of-sample edge, so the badge can no longer be less demanding than the verdict beneath it.',
+    tech:'stability_first_tier: STABLE-ROBUST, STABLE-EDGE, STABLE-THIN, STABLE-NO-EDGE, UNSTABLE. Since 2026-07-18 the crown additionally requires recent out-of-sample edge, and since 2026-08-01 it also requires enough trades to mean anything (not starved / trades_ok) — so the badge can no longer be less demanding than the verdict beneath it on either axis.',
     code:'fep_robustness.py &middot; stability_first_tier()',
     m:function(p){return {lbl:'Shipped label',v:'verdict <b>'+p.verdict+'</b> &nbsp;&middot;&nbsp; tier <b>'+p.tier+'</b>',
       s:p.tier==='UNSTABLE'?'bad':(p.verdict==='ROBUST'?'ok':'warn')};}}
@@ -1096,7 +1096,7 @@ the rest of the document becomes a reference rather than a narrative.</p>
   <div class="formula">$$ \text{Sharpe} = \sqrt{P}\;\frac{\overline{(r - r_f/P)}}{\sigma_{\text{pop}}(r - r_f/P)} $$</div>
   <div class="formula">$$ P = \begin{cases} 365 & \text{crypto (default)} \\ 252 & \text{stocks} \end{cases}\qquad \sigma_{\text{pop}}=\sqrt{\tfrac{1}{N}\textstyle\sum(x_i-\bar x)^2}\ (\text{ddof}=0) $$</div>
   <div class="formula">$$ \underbrace{\frac{\overline{e}}{\sigma_{\text{pop}}(e)}}_{\text{daily Sharpe}}\ \times\ \sqrt{P}\ =\ \text{annual Sharpe} $$</div>
-<p>The code's <code>_sharpe</code> forms the <b>excess series</b> <code>e = r − r_f/P</code> first: the annual risk-free rate is de-annualized by <em>simple division</em> (not geometrically) so it lives on the same per-bar scale as the returns. Mean and dispersion are then computed on that <b>same</b> excess series.</p><p>The denominator is the <b>population</b> standard deviation, <code>ddof=0</code> (divide by N), not the textbook sample <code>ddof=1</code>. Since bars are daily, <code>P</code> equals bars-per-year, and the periodicity annualization factor is exactly <code>√P</code> — read at call time from the mutable global <code>_ACTIVE_PPY</code> (365 for 24/7 crypto, 252 for stocks via the <code>annualization()</code> context manager).</p><p>The <b>daily</b> Sharpe <span class="muted">ē / σ(e)</span> is a dimensionless signal-to-noise ratio of one bar. Annualizing sums <code>P</code> i.i.d. bars: mean scales like <code>P</code> and std like <code>√P</code>, so their ratio scales like <code>P/√P = √P</code>. That <code>√P</code> blow-up is the entire difference between the daily and headline numbers — and why switching 252↔365 alone moves the reported Sharpe by <code>√(365/252) ≈ 1.20×</code> on identical returns.</p>
+<p>The code's <code>_sharpe</code> forms the <b>excess series</b> <code>e = r − r_f/P</code> first: the annual risk-free rate is de-annualized by <em>simple division</em> (not geometrically) so it lives on the same per-bar scale as the returns. Mean and dispersion are then computed on that <b>same</b> excess series.</p><p>The denominator is the <b>population</b> standard deviation, <code>ddof=0</code> (divide by N), not the textbook sample <code>ddof=1</code>. Since bars are daily, <code>P</code> equals bars-per-year, and the periodicity annualization factor is exactly <code>√P</code> — passed as an explicit <code>periods_per_year</code> argument to every <code>Backtester</code> entry point, defaulting at call time to a per-thread ambient basis (<code>backtester._PPY_STATE</code>, a <code>threading.local</code>) that the <code>annualization()</code> context manager sets (365 for 24/7 crypto, 252 for stocks).</p><p>The <b>daily</b> Sharpe <span class="muted">ē / σ(e)</span> is a dimensionless signal-to-noise ratio of one bar. Annualizing sums <code>P</code> i.i.d. bars: mean scales like <code>P</code> and std like <code>√P</code>, so their ratio scales like <code>P/√P = √P</code>. That <code>√P</code> blow-up is the entire difference between the daily and headline numbers — and why switching 252↔365 alone moves the reported Sharpe by <code>√(365/252) ≈ 1.20×</code> on identical returns.</p>
 <div class="lab" id="mathlab-sharpe">
   <div class="lab-h"><span class="tag">MATH</span><b>The Sharpe ratio — daily edge, blown up by √P</b></div>
   <div class="lab-body">
@@ -1194,7 +1194,7 @@ the rest of the document becomes a reference rather than a narrative.</p>
 <p class="lede" style="font-size:16px">Same mean, same spread — but Sharpe divides by all volatility, Sortino divides by the RMS of the below-zero returns over all N.</p>
   <div class="formula">$$ \text{DD} = \sqrt{\dfrac{1}{N}\sum_{i=1}^{N}\big(\min(e_i,0)\big)^2}\,,\qquad e_i = r_i - r_f/\text{ppy} $$</div>
   <div class="formula">$$ \text{Sortino} = \sqrt{\text{ppy}}\;\dfrac{\overline{e}}{\text{DD}}\,,\qquad \text{Sharpe} = \sqrt{\text{ppy}}\;\dfrac{\overline{e}}{\sigma_{\text{pop}}(e)} $$</div>
-<p>Sharpe treats every deviation from the mean as risk. That is symmetric: a windfall <code>+8%</code> day inflates the denominator exactly as much as a <code>-8%</code> crash. For an investor who only fears losses this over-penalizes upside surprises. Sortino fixes the denominator so <b>only harmful volatility is charged</b>.</p><p>The code (<code>backtester.py:203-215</code>) forms excess returns <code>e = r − r_f/ppy</code>, then <code>neg = e.clip(upper=0)</code> — every positive return is zeroed, every negative kept. Downside deviation is <code>DD = sqrt(mean(neg²))</code>. Two non-textbook choices are load-bearing: the mean divides by <b>all N</b> (not the count of losing days), and deviations are measured from a hard <b>target of 0</b> (not from the subset mean). Both keep <code>DD</code> honestly small — the earlier subset-std form divided by fewer observations and re-centred on the loss mean, shrinking the denominator and inflating Sortino.</p><p>Numerator and annualization are identical to Sharpe: mean excess return, scaled by <code>√ppy</code> (365 crypto, 252 stocks). So <code>Sortino/Sharpe = σ_pop(e)/DD ≥ 1</code> always, and the two <b>diverge exactly as the left tail fattens</b>: a strategy with clustered small losses and rare big gains keeps <code>DD</code> low while <code>σ</code> balloons, so Sortino ≫ Sharpe. This is why the FEP gate floors Sortino at <code>1.0</code> but Sharpe only at <code>0.7</code> (<code>fep_robustness.py:33</code>) — the same edge, read through a downside-only lens, must clear a higher bar.</p>
+<p>Sharpe treats every deviation from the mean as risk. That is symmetric: a windfall <code>+8%</code> day inflates the denominator exactly as much as a <code>-8%</code> crash. For an investor who only fears losses this over-penalizes upside surprises. Sortino fixes the denominator so <b>only harmful volatility is charged</b>.</p><p>The code (<code>backtester.py:230-242</code>, <code>_sortino</code>) forms excess returns <code>e = r − r_f/ppy</code>, then <code>neg = e.clip(upper=0)</code> — every positive return is zeroed, every negative kept. Downside deviation is <code>DD = sqrt(mean(neg²))</code>. Two non-textbook choices are load-bearing: the mean divides by <b>all N</b> (not the count of losing days), and deviations are measured from a hard <b>target of 0</b> (not from the subset mean). Both keep <code>DD</code> honestly small — the earlier subset-std form divided by fewer observations and re-centred on the loss mean, shrinking the denominator and inflating Sortino.</p><p>Numerator and annualization are identical to Sharpe: mean excess return, scaled by <code>√ppy</code> (365 crypto, 252 stocks). So <code>Sortino/Sharpe = σ_pop(e)/DD ≥ 1</code> always, and the two <b>diverge exactly as the left tail fattens</b>: a strategy with clustered small losses and rare big gains keeps <code>DD</code> low while <code>σ</code> balloons, so Sortino ≫ Sharpe. This is why the FEP gate floors Sortino at <code>1.0</code> but Sharpe only at <code>0.7</code> (<code>fep_robustness.py:33</code>) — the same edge, read through a downside-only lens, must clear a higher bar.</p>
 <div class="lab" id="mathlab-sortino">
   <div class="lab-h"><span class="tag">MATH</span><b>Sortino: only the left tail is charged for risk</b></div>
   <div class="lab-body">
@@ -1293,7 +1293,7 @@ the rest of the document becomes a reference rather than a narrative.</p>
   <div class="formula">$$ \Omega(\theta) = \dfrac{\sum_{r_i > \theta}(r_i - \theta)}{\sum_{r_i < \theta}(\theta - r_i)} $$</div>
   <div class="formula">$$ \Omega(\theta) = \dfrac{\int_{\theta}^{\infty}\big(1-F(r)\big)\,dr}{\int_{-\infty}^{\theta}F(r)\,dr} $$</div>
   <div class="formula">$$ \Omega(\mu)=1 \;\Longleftrightarrow\; \theta=\mathbb{E}[r]\;\;(\text{break-even}) $$</div>
-<p>The discrete form the backtester ships (<code>_omega</code>, <code>backtester.py:218</code>) is a pure ratio of sums: numerator is the total <em>distance</em> of every return that lands strictly above the threshold <span class="muted">θ</span>, denominator the total distance of every return strictly below it. Ties (<code>r == θ</code>) are dropped from both — the code uses strict <code>&gt;</code> and <code>&lt;</code>. With no losses the denominator is 0 and the function returns <code>+inf</code>. The shipped threshold is <code>θ = 0</code>, not the risk-free rate, and nothing is annualized: Ω is dimensionless.</p><p>The integral identity is the reason Ω is more than a dressed-up win/loss count. Integrating the numerator sum by parts turns it into the area of the <b>upper tail</b> of the CDF, <code>∫(1−F)</code> above θ; the denominator becomes the area of the <b>lower tail</b>, <code>∫F</code> below θ. So Ω absorbs the <em>entire shape</em> of the distribution — every moment, skew and fat tails included — whereas Sharpe collapses it to just mean and variance.</p><p>The break-even fact is exact and worth internalizing. Numerator minus denominator equals <code>Σ(rᵢ − θ) = N(μ − θ)</code>. That difference is zero precisely when <span class="muted">θ = μ</span>, and a ratio whose top and bottom are equal is 1. So <b>Ω(θ) = 1 exactly at the mean</b>: slide θ below the mean and Ω &gt; 1, above it and Ω &lt; 1. Drag the line onto the mean marker and watch the readout snap to 1.000.</p><p>In the FEP gate this is a green-vote metric with floor <code>Ω ≥ 1.15</code> (<code>COBRA_RATIO_FLOORS</code>, <code>fep_robustness.py:33</code>) — measured at θ=0, so it asks whether upside mass beats downside mass by a clear 15% margin, not merely whether the strategy is net-positive.</p>
+<p>The discrete form the backtester ships (<code>_omega</code>, <code>backtester.py:245-248</code>) is a pure ratio of sums: numerator is the total <em>distance</em> of every return that lands strictly above the threshold <span class="muted">θ</span>, denominator the total distance of every return strictly below it. Ties (<code>r == θ</code>) are dropped from both — the code uses strict <code>&gt;</code> and <code>&lt;</code>. With no losses the denominator is 0 and the function returns <code>+inf</code>. The shipped threshold is <code>θ = 0</code>, not the risk-free rate, and nothing is annualized: Ω is dimensionless.</p><p>The integral identity is the reason Ω is more than a dressed-up win/loss count. Integrating the numerator sum by parts turns it into the area of the <b>upper tail</b> of the CDF, <code>∫(1−F)</code> above θ; the denominator becomes the area of the <b>lower tail</b>, <code>∫F</code> below θ. So Ω absorbs the <em>entire shape</em> of the distribution — every moment, skew and fat tails included — whereas Sharpe collapses it to just mean and variance.</p><p>The break-even fact is exact and worth internalizing. Numerator minus denominator equals <code>Σ(rᵢ − θ) = N(μ − θ)</code>. That difference is zero precisely when <span class="muted">θ = μ</span>, and a ratio whose top and bottom are equal is 1. So <b>Ω(θ) = 1 exactly at the mean</b>: slide θ below the mean and Ω &gt; 1, above it and Ω &lt; 1. Drag the line onto the mean marker and watch the readout snap to 1.000.</p><p>In the FEP gate this is a green-vote metric with floor <code>Ω ≥ 1.15</code> (<code>COBRA_RATIO_FLOORS</code>, <code>fep_robustness.py:33</code>) — measured at θ=0, so it asks whether upside mass beats downside mass by a clear 15% margin, not merely whether the strategy is net-positive.</p>
 <div class="lab" id="mathlab-omega">
   <div class="lab-h"><span class="tag">MATH</span><b>The Omega ratio</b></div>
   <div class="lab-body">
@@ -1512,7 +1512,7 @@ the rest of the document becomes a reference rather than a narrative.</p>
   <div class="formula">$$ \text{ppy} = \begin{cases} 365 & \text{crypto (default)} \\ 252 & \text{stocks} \end{cases} $$</div>
   <div class="formula">$$ \text{Sharpe}_{\text{ann}} = \sqrt{\text{ppy}}\;\frac{\overline{(r-r_f/\text{ppy})}}{\sigma_{\text{pop}}(r-r_f/\text{ppy})} = \sqrt{\text{ppy}}\;\cdot\;\text{Sharpe}_{\text{per-period}} $$</div>
   <div class="formula">$$ \frac{\sqrt{365}}{\sqrt{252}} = \sqrt{\tfrac{365}{252}} = 1.2035\quad(\text{basis-mismatch inflation}) $$</div>
-<p>Every annualized ratio in the backtester (<code>_sharpe</code>, <code>_sortino</code>, Annual Vol, Info Ratio) is a <b>per-period</b> statistic multiplied by a single scalar <code>√ppy</code>. The reason is variance additivity: for i.i.d. daily returns, mean scales linearly with the number of periods (<em>k·μ</em>) while standard deviation scales with <em>√k</em> (<em>√k·σ</em>). Their ratio therefore scales by <em>k/√k = √k</em>. With <code>k = ppy</code> daily bars per year, the annualization factor is exactly <code>√ppy</code> — not <code>ppy</code>.</p><p>The code reads <code>ppy</code> from a mutable module global <code>_ACTIVE_PPY</code> at <em>call time</em>: <code>365</code> for crypto (24/7 trading, <code>_TRADING_DAYS</code>) and <code>252</code> for stocks (<code>_STOCK_TRADING_DAYS</code>), swapped via the <code>annualization()</code> context manager. The mean excess uses de-annualized risk-free <code>r_f/ppy</code> and the denominator is the <b>population</b> std (<code>ddof=0</code>), so the whole ratio is a clean <code>√ppy · (per-period Sharpe)</code>.</p><p>The trap: the factor differs by basis. <code>√365 / √252 = √(365/252) = 1.2035</code>. Annualizing a <em>stock</em> with the crypto basis of 365 multiplies its true (252-based) Sharpe and Sortino by <b>1.2035×</b> — a ~20% free inflation. A stock whose honest annualized Sharpe is the FEP edge floor of <b>0.70</b> would read <code>0.70 × 1.2035 = 0.842</code> under 365, spuriously clearing the gate. That is why stock TPI scoring must enter <code>annualization(252)</code> before scoring — otherwise the COBRA floors are silently loosened for every non-crypto name.</p>
+<p>Every annualized ratio in the backtester (<code>_sharpe</code>, <code>_sortino</code>, Annual Vol, Info Ratio) is a <b>per-period</b> statistic multiplied by a single scalar <code>√ppy</code>. The reason is variance additivity: for i.i.d. daily returns, mean scales linearly with the number of periods (<em>k·μ</em>) while standard deviation scales with <em>√k</em> (<em>√k·σ</em>). Their ratio therefore scales by <em>k/√k = √k</em>. With <code>k = ppy</code> daily bars per year, the annualization factor is exactly <code>√ppy</code> — not <code>ppy</code>.</p><p>The code takes <code>ppy</code> as an explicit <code>periods_per_year</code> argument on every <code>Backtester</code> entry point (<code>from_price_series</code> / <code>from_returns</code> / <code>from_weights</code>), falling back <em>at call time</em> to a per-thread ambient basis (<code>backtester._PPY_STATE</code>, a <code>threading.local</code>): <code>365</code> for crypto (24/7 trading, <code>_TRADING_DAYS</code>) and <code>252</code> for stocks (<code>_STOCK_TRADING_DAYS</code>), set via the <code>annualization()</code> context manager. Being thread-local rather than a process-global is what stops a background stock-generation job from poisoning metrics computed concurrently on a dashboard request thread. The mean excess uses de-annualized risk-free <code>r_f/ppy</code> and the denominator is the <b>population</b> std (<code>ddof=0</code>), so the whole ratio is a clean <code>√ppy · (per-period Sharpe)</code>.</p><p>The trap: the factor differs by basis. <code>√365 / √252 = √(365/252) = 1.2035</code>. Annualizing a <em>stock</em> with the crypto basis of 365 multiplies its true (252-based) Sharpe and Sortino by <b>1.2035×</b> — a ~20% free inflation. A stock whose honest annualized Sharpe is the FEP edge floor of <b>0.70</b> would read <code>0.70 × 1.2035 = 0.842</code> under 365, spuriously clearing the gate. That is why stock TPI scoring must enter <code>annualization(252)</code> before scoring — otherwise the COBRA floors are silently loosened for every non-crypto name.</p>
 <div class="lab" id="mathlab-annual">
   <div class="lab-h"><span class="tag">MATH</span><b>Annualization: time is a square root</b></div>
   <div class="lab-body">
@@ -2634,13 +2634,17 @@ with a <em>thread-local</em> ambient fallback for the generation pipeline — so
 computed concurrently on a dashboard request thread (the old process-global <code>_ACTIVE_PPY</code> could).</div>
 
 <!-- ============================ 7b — TRANSACTION COSTS ============================ -->
-<h3 id="costs" style="color:var(--accent2);border-top:1px solid var(--line);padding-top:16px">Transaction costs — the floors are gross; costs live at the portfolio layer</h3>
-<p>Be explicit about what the edge floors do <em>not</em> include: the per-TPI COBRA metrics (Sharpe&nbsp;0.70, Sortino&nbsp;1.0, PF&nbsp;1.5,
-Omega&nbsp;1.15) are computed on a <b>frictionless</b> equity curve. The TPI scoring path
-(<code>signal_to_equity&nbsp;&rarr;&nbsp;Backtester.from_price_series</code>) has no cost hook, so every verdict floor is gross-of-cost by
-construction. That is deliberate — a per-pair TPI is a <em>vote</em>, not a tradable book — but it must be <em>stated</em>, not assumed.</p>
+<h3 id="costs" style="color:var(--accent2);border-top:1px solid var(--line);padding-top:16px">Transaction costs — the verdict floors are net-of-cost, and so is the portfolio layer</h3>
+<p>Be explicit about what the edge floors <em>do</em> include since the 2026-07 net regeneration: the per-TPI COBRA metrics
+(Sharpe&nbsp;0.70, Sortino&nbsp;1.0, PF&nbsp;1.5, Omega&nbsp;1.15) are computed <b>net of a per-flip charge</b>. The TPI scoring path
+(<code>signal_to_equity&nbsp;&rarr;&nbsp;Backtester.from_price_series</code>) gained an explicit <code>cost_bps</code> hook
+(<code>strat_dev_engine.signal_to_equity(&hellip;, *, cost_bps=0.0)</code>); under <code>config.NET_VERDICTS_ENABLED</code>
+(default on since 2026-07-11) autogen threads a live venue+leg-aware rate into every scoring call, so every verdict floor is
+<b>net-of-cost</b> by construction. The exact rate is stamped in each report's <code>_net_cost_bps</code> (2.6&ndash;54&nbsp;bps/flip
+across the shipped book; e.g. BNBETH&nbsp;13.0). A per-pair TPI is still a <em>vote</em>, not a tradable book — but its edge is now
+measured after whipsaw pays its own fee bill.</p>
 <p>Costs are modeled one level up, at the <b>rotation / portfolio</b> layer, by a toggleable venue-aware fee model
-(<code>config.FEES_ENABLED</code>, default&nbsp;<b>off</b>; <code>Backtester.net_portfolio_returns</code> is the single accounting core shared by
+(<code>config.FEES_ENABLED</code>, default&nbsp;<b>on</b> since 2026-07-16; <code>Backtester.net_portfolio_returns</code> is the single accounting core shared by
 the headline equity <em>and</em> both OOS evaluators, so they can never diverge net-vs-gross). Buys pay <code>buy_bps</code>, sells pay
 <code>sell_bps</code> — Korean/Taiwanese sell-side transaction taxes live on the sell leg — plus per-class slippage; cash legs are never charged,
 so an asset&rarr;asset switch books sell+buy while an asset&rarr;cash flip books one side. Researched 2026-07 schedule: <b>Bybit spot</b>
@@ -2649,8 +2653,8 @@ KRX&nbsp;7/27, TWSE&nbsp;11/41 incl. the 0.20% / 0.30% sell taxes). Turning the 
 a compounded <b>Fee&nbsp;Drag&nbsp;%</b>, and annual one-way turnover (cash legs excluded).</p>
 <div class="note">What it costs, measured (2020&rarr;2026, standard tier): the crypto top-3 rotation keeps a decisive edge net of fees — terminal-wealth
 <b>Fee Drag &asymp; 28%</b>, ~40 one-way turns/yr, and it still beats BTC buy-&amp;-hold even at <b>5&times;</b> fees. The turnover count is the lever,
-not the per-trade rate. <b>Open (Tier-1.1):</b> because the fee model does not reach the TPI scoring path, the per-TPI <em>verdict</em> is still
-gross-of-cost — netting the verdict floors is deferred work and would require re-deriving the book on net returns.</div>
+not the per-trade rate. <b>Closed (was Tier-1.1):</b> the per-TPI <em>verdict</em> now scores net — the book was re-derived on net
+returns on 2026-07-11 (<code>NET_VERDICTS_ENABLED</code>), and every artifact carries its <code>_net_cost_bps</code> provenance stamp.</div>
 
 <!-- ============================ 8 — OPTIMIZER ============================ -->
 <h2 class="section" id="pipeline"><span class="n">8</span>How the optimizer employs these principles</h2>
@@ -2961,10 +2965,10 @@ components</em> — it is not itself a certified strategy, and it is never count
 <div class="aff"><div class="d">AFFIRMED &middot; 2026-07</div><h4>Annualization is asset-class-aware (crypto 365 / stock 252).</h4>
   <p class="tiny" style="margin:0">Removes a spurious ~1.20&times; Sharpe/Sortino credit on the stock sleeve. Re-scoring the 16 stock TPIs produced zero verdict flips — a
   units fix, not a re-labelling. Threaded explicitly as <code>periods_per_year</code> (thread-local ambient fallback for generation).</p></div>
-<div class="aff"><div class="d">AFFIRMED &middot; 2026-07</div><h4>Transaction costs are modeled at the portfolio layer; TPI verdicts stay gross.</h4>
-  <p class="tiny" style="margin:0">A toggleable venue-aware fee model (Bybit spot / IBKR tiered with sell-side taxes; <code>config.FEES_ENABLED</code>, default off) nets the
-  rotation equity and both OOS evaluators through one shared accounting core. The per-pair FEP floors remain gross-of-cost <em>by construction</em>
-  (a TPI is a vote, not a book); net-of-verdict is deferred (Tier-1.1). Rationale &amp; measured impact in &sect;7b · Transaction costs.</p></div>
+<div class="aff"><div class="d">AFFIRMED &middot; 2026-07</div><h4>Transaction costs are modeled at both layers; TPI verdicts score net.</h4>
+  <p class="tiny" style="margin:0">A venue-aware fee model (Bybit spot / IBKR tiered with sell-side taxes; <code>config.FEES_ENABLED</code>, default on since 2026-07-16) nets the
+  rotation equity and both OOS evaluators through one shared accounting core. The per-pair FEP floors also score <em>net</em> since
+  <code>NET_VERDICTS_ENABLED</code> (2026-07-11), at the per-flip rate stamped in each report's <code>_net_cost_bps</code>. Rationale &amp; measured impact in &sect;7b · Transaction costs.</p></div>
 <div class="aff"><div class="d">AFFIRMED &middot; 2026-07</div><h4>Every newly generated TPI carries a lockbox holdout and a trial ledger — both report-only.</h4>
   <p class="tiny" style="margin:0">The lockbox reserves the final ~6 months as data the whole pipeline is structurally blind to; the ledger records every
   parameter configuration the search drew and prices the winner against the Bailey&ndash;LdP expected-max-of-noise null and the SRIC fitting-cost bound.
@@ -3078,8 +3082,10 @@ train &rarr; validation &rarr; <b>test</b> &rarr; <b>live monitoring</b> pipelin
 </table>
 <p>The honest claim hierarchy this enforces: an in-sample Sharpe is a <em>selection</em> statistic (read it against the ledger's null); a
 lockbox pass is <em>one</em> unbiased observation (screening, and — only above the E6 evidence floor — certification); only the forward channels — above all the portfolio one —
-accumulate evidence that can genuinely certify. And per &sect;7b, all three channels are currently <b>gross of cost</b>; the net-of-cost
-verdict layer is the open Tier-1.1 track.</p>
+accumulate evidence that can genuinely certify. And per &sect;7b, the cost basis now differs by channel: the lockbox holdout (via
+<code>_cobra_metrics&nbsp;&rarr;&nbsp;evaluate</code>) and the portfolio-forward channel (via <code>rotation_oos</code>) are <b>net of
+cost</b> whenever <code>config.FEES_ENABLED</code> is on; only the per-TPI forward test is still <b>gross</b> (its scoring path passes no
+<code>cost_bps</code>) — the one remaining Tier-1.1 gap.</p>
 <div class="note tiny">Full design rationale and the FRAGILE deployability policy that accompanies these channels:
 <code>research/robustness/06_clean_evidence_channels.md</code>. Decay monitoring is detect-only with manual Regenerate / Keep / Revert —
 a false decay alarm must never silently reset a clean forward clock.</div>
@@ -3139,11 +3145,11 @@ label this document never defined. It lives in <code>fep_robustness.stability_fi
   <b>MC significance, coherence, turnover, cross-asset</b> in the critical list. Checked <em>first</em> &mdash; an unstable
   committee can never earn a better tier no matter how good its edge looks.</td></tr>
 <tr><td><b>STABLE&#8209;NO&#8209;EDGE</b></td>
-  <td>Reproducible, but there is no edge to speak of.</td>
-  <td>Stable on every axis, but fewer than <code>EDGE_GREEN_MIN</code> (3) of the four edge floors clear.</td></tr>
+  <td>Reproducible, but earns nothing &mdash; vote-only material.</td>
+  <td>Stable on every axis, fewer than <code>EDGE_GREEN_MIN</code> (3) of the four edge floors clear, <em>and</em> full-period net Sharpe is &le; 0 (or unmeasurable).</td></tr>
 <tr><td><b>STABLE&#8209;THIN</b></td>
-  <td>Reproducible and shows an edge, but on too little evidence to lean on.</td>
-  <td>Stable + edge present, but the trade count is below the certifiability bar &mdash; the "low N" case.</td></tr>
+  <td>Reproducible and earns a small positive return, but below every edge floor.</td>
+  <td>Stable on every axis, fewer than <code>EDGE_GREEN_MIN</code> (3) edge floors clear, <em>but</em> full-period net Sharpe is &gt; 0. The only discriminator from STABLE-NO-EDGE is the sign of Sharpe &mdash; the tier reads no trade count at all (it is not a "low N" test).</td></tr>
 <tr><td><b>STABLE&#8209;EDGE</b></td>
   <td>Reproducible with a real edge on the full history &mdash; but the <em>recent</em> evidence does not confirm it.</td>
   <td>Stable + &ge; 3 of 4 edge floors, but it fails the crown's extra requirement below.</td></tr>
@@ -3161,11 +3167,21 @@ sweep and out-of-sample requirement demoted <b>7 of 24</b> crowns (BNBPAXG, SOLB
 tiers moved 24/9/7/11/4 &rarr; 17/9/14/11/4. After it, <b>no crowned committee sits on a FRAGILE verdict</b>, which is the
 coherence property the badge is supposed to carry.</p>
 
+<p><b>And the requirement it gained on 2026-08-01: enough trades to mean anything.</b> The same defect recurred on a
+different axis. <span class="mono">stability_first_tier</span> still never read <span class="mono">fep['starved']</span> /
+<span class="mono">fep['trades_ok']</span>, while the verdict underneath treats evidence sufficiency as non-negotiable &mdash;
+a starved committee is capped at BORDERLINE, <em>never</em> ROBUST. So the crown was once again the <em>less</em> demanding of
+the two labels. Adding the starvation term demoted <b>16 of the 17</b> remaining crowns &mdash; every one of them for
+<span class="mono">trades_ok = False</span>, i.e. the crown had been resting on too few trades to carry it. Tiers moved
+17/9/14/11/4 &rarr; <b>1/9/30/11/4</b>. Thin evidence is not bad evidence, so a starved committee keeps STABLE-EDGE (stable,
+with edge); it simply is not crowned. Found by AUDIT_2026-07-30 and stamped through the real function by
+<span class="mono">_tier_book.py</span>.</p>
+
 <p><b>Reading the two labels together.</b> The tier does <em>not</em> read the verdict &mdash; they are computed
-independently, so a combination like STABLE-ROBUST + BORDERLINE is normal rather than contradictory (17 committees sit there
-today). It usually means the committee is stable with a genuine edge, but walk-forward could not <em>certify</em> it because a
-slow long-only strategy books too few out-of-sample trades. Stability is a MUST; certification is evidence the book may simply
-not have yet.</p>
+independently, so a combination like STABLE-EDGE + BORDERLINE is normal rather than contradictory (most of the book sits
+there today). It usually means the committee is stable with a genuine edge, but walk-forward could not <em>certify</em> it
+because a slow long-only strategy books too few out-of-sample trades. Stability is a MUST; certification is evidence the book
+may simply not have yet.</p>
 
 <h2 class="section" id="voting"><span class="n">12d</span>When does a pair vote? — the conditions, in plain terms</h2>
 
@@ -3291,7 +3307,8 @@ assessment method. It is the single easiest misreading to make here, so it is wr
 
 <p><b>D16 never pitted an admitted committee against a refused one.</b> Every committee in every
 scenario had already cleared the admission exam. <span class="mono">STABLE-THIN</span> does not mean
-"bad" — it means "passed, with a thinner measured edge than <span class="mono">STABLE-ROBUST</span>".
+"bad" — it means "stable on every axis and earning a positive net return, just below the edge floors"
+(below <span class="mono">STABLE-ROBUST</span>, not edgeless).
 So the comparison was <b>"very good versus good enough"</b>, never "good versus bad".</p>
 
 <p><b>What follows, concretely:</b></p>
