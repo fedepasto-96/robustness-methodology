@@ -156,6 +156,7 @@ canvas{max-width:100%;background:transparent;border-radius:8px}
   <a href="#decisions">13 · Affirmed decisions</a>
   <h4>Evidence</h4>
   <a href="#evidence">14 · Clean evidence: lockbox &amp; ledger</a>
+  <a href="#evidence-forward">14d · Live forward test · Δ · when to regenerate</a>
   <h4>Structure</h4>
   <a href="#structure">15 · Time-coherence gates &amp; hysteresis</a>
   <a href="#voting">12d · When does a pair vote?</a>
@@ -167,7 +168,7 @@ canvas{max-width:100%;background:transparent;border-radius:8px}
 </nav>
 <main>
 
-<h1>Robustness &amp; Stability of Auto-Generated TPIs<br/><span class="sub tiny muted">how the principles are defined, and how the optimizer is built to seek them — a living, interactive spec · last updated 2026-07-15</span></h1>
+<h1>Robustness &amp; Stability of Auto-Generated TPIs<br/><span class="sub tiny muted">how the principles are defined, and how the optimizer is built to seek them — a living, interactive spec · last updated 2026-09-05</span></h1>
 <p class="lede">Every knob below is wired to the <em>actual</em> production logic. Drag them and the verdict recomputes exactly the way <code>fep_robustness.fep_verdict()</code> does in the codebase. Nothing here is a mock-up of the math — it <em>is</em> the math.</p>
 
 <div class="card" id="tldr">
@@ -3076,7 +3077,7 @@ train &rarr; validation &rarr; <b>test</b> &rarr; <b>live monitoring</b> pipelin
 <thead><tr><th>Channel</th><th>Question</th><th>Clean because&hellip;</th></tr></thead>
 <tbody>
 <tr><td><b>Lockbox holdout</b> (per TPI, at birth)</td><td>was this TPI overfit the day it was made?</td><td>the pipeline is structurally blind to the window; measured write-once</td></tr>
-<tr><td><b>Per-TPI forward test</b> (PSR + Sortino haircut)</td><td>is this TPI still working?</td><td>post-<code>generated_at</code> data did not exist at generation — uncheatable; thin (~12&ndash;20 trades/yr), so slow</td></tr>
+<tr><td><b>Per-TPI forward test</b> (PSR + Sortino haircut, then sleeve Δ cap)</td><td>is this TPI still working <em>and</em> earning its seat?</td><td>post-<code>generated_at</code> data did not exist at generation — uncheatable; thin (~12&ndash;20 trades/yr), so slow. Isolated PSR/haircut are inverted vs measured contribution (Spearman ρ −0.374), so Action is capped by leave-one-out Δ — see &sect;14d</td></tr>
 <tr><td><b>Portfolio forward</b> (<code>__crypto_portfolio__</code>)</td><td>is the <em>rotation</em> still working?</td><td>same uncheatable basis, but ~50 one-way trades/yr &rarr; far more statistical power; freeze = max <code>generated_at</code> across the book, so regenerating <em>any</em> TPI restarts the clock</td></tr>
 </tbody>
 </table>
@@ -3088,7 +3089,166 @@ cost</b> whenever <code>config.FEES_ENABLED</code> is on; only the per-TPI forwa
 <code>cost_bps</code>) — the one remaining Tier-1.1 gap.</p>
 <div class="note tiny">Full design rationale and the FRAGILE deployability policy that accompanies these channels:
 <code>research/robustness/06_clean_evidence_channels.md</code>. Decay monitoring is detect-only with manual Regenerate / Keep / Revert —
-a false decay alarm must never silently reset a clean forward clock.</div>
+a false decay alarm must never silently reset a clean forward clock. The operator rule for <em>when</em> to hit Regenerate is &sect;14d.</div>
+
+<h3 id="evidence-forward">14d &middot; Live forward test — PSR, haircut, Δ (pp/yr), and when to change a TPI</h3>
+<p class="lede">The Auto-TPI table's Forward / Degradation / Action cells are one snapshot of
+<code>tpi_forward_test.forward_curve()</code>. This section is the theory those chips assume. Look at
+<b>Action</b> to decide whether to change a TPI; the chips are the inputs, not the decision.</p>
+
+<p>A TPI's indicators and parameters are <b>locked at generation</b> (<code>generated_at</code>). Markets drift, so the
+live question is: on data that arrived <em>after</em> we froze it, does the edge still hold — and does this committee
+still earn its seat in the rotation? Those are two different questions, and treating the first as a proxy for the second
+is what this subsection exists to stop.</p>
+
+<div class="note warn">The three columns cannot disagree with each other. Forward (chips), Degradation (isolated-series
+label), and Action (operator decision) are computed in one <code>forward_curve()</code> call and cached at most once per
+UTC day. If Degradation says <b>Monitoring</b> while Forward shows a scary red Δ and an oos PSR of 48%, that is not
+staleness — Degradation ignores the oos preview and does not use Δ. Δ caps <em>Action</em>, and the 90-day gate keeps
+Action at <b>Monitor</b> until enough post-freeze data exists.</div>
+
+<h4>The horizon gate — do not change a TPI that is still collecting</h4>
+<p>A verdict is withheld until there are at least <code>_MIN_FWD_RET = 60</code> genuine-forward daily returns spanning
+<code>_MIN_FWD_DAYS = 90</code> calendar days after <code>generated_at</code> (<code>tpi_forward_test.py</code>). Until then:</p>
+<ul>
+  <li>Degradation = <b>Monitoring</b></li>
+  <li>Action = <b>Monitor</b> — <em>do not regenerate</em></li>
+  <li>Forward shows <code>collecting · N/90d</code> and <code>genuine PSR/HC pending</code></li>
+</ul>
+<p>A strategy frozen last month has not "decayed". Judging it on the held-out tail of data that already existed at freeze
+(the old IS/OOS split) is what used to raise false alarms on brand-new committees. Genuine forward testing asks one thing:
+on bars that arrived after we locked it, does the edge still hold?</p>
+<p>The muted <code>oos preview</code> line (PSR / haircut on the tuning hold-out) is <b>not a regenerate signal</b>. That
+slice was unseen during optimisation but <em>existed at freeze</em>, so it is a preview, not forward evidence. It is
+replaced by the real PSR / haircut once the 90-day gate opens.</p>
+
+<h4>Isolated ingredients — PSR, Sortino haircut, keep</h4>
+<p>Once the gate opens, Degradation is classified from the genuine-forward daily strategy returns (prev-day traded sign
+&times; next return, averaged across the basket, long-only — the same <code>_traded_sign</code> the live book uses):</p>
+<div class="formula">$$ \mathrm{PSR}(0)=\Phi\!\left(\dfrac{\widehat{\mathrm{SR}}\,\sqrt{n-1}}{\sqrt{\,1-\gamma_3\,\widehat{\mathrm{SR}}+\tfrac{\gamma_4-1}{4}\,\widehat{\mathrm{SR}}^2\,}}\right) $$</div>
+<p>That is Bailey &amp; L&oacute;pez de Prado's Probabilistic Sharpe (same estimator as &sect;M / Deflated Sharpe, with
+benchmark \(SR^*=0\)): the probability the <em>true</em> forward Sharpe is positive, after sample length, skew and
+kurtosis. Constants: <code>_PSR_OK = 0.80</code> (Keep), <code>_PSR_DEAD = 0.50</code> (Regenerate). A fixed PSR cutoff is
+a moving performance bar — PSR 80% needs a sustained annualised Sharpe of ~1.71 at \(n=90\) but only ~0.84 at \(n=365\)
+— so a PSR is not <em>certified</em> green until <code>_PSR_CERTIFY_N = 180</code> observations; below that the chip is
+amber even at 80%+.</p>
+<div class="formula">$$ \mathrm{haircut} = \dfrac{\mathrm{Sortino}_{\mathrm{fwd}}}{\mathrm{Sortino}_{\mathrm{dev}}} $$</div>
+<p>How much of the development downside-adjusted edge survives. Keep bar: <code>_HAIRCUT_OK = 0.50</code> (at least half).
+Colour bands are calibrated against measured vote corruption (<code>research/robustness/tpi_system_coupling</code>):</p>
+<table>
+<thead><tr><th>Haircut</th><th>Chip</th><th>About this much of the book&rsquo;s votes have gone bad</th></tr></thead>
+<tbody>
+<tr><td>&ge; 85%</td><td>green</td><td>~5%</td></tr>
+<tr><td>65–85%</td><td>amber</td><td>~10%</td></tr>
+<tr><td>40–65%</td><td>red</td><td>~15–20%</td></tr>
+<tr><td>&lt; 40%</td><td>black</td><td>~30% — a third of the book rotted</td></tr>
+</tbody>
+</table>
+<p>The haircut is an unbounded ratio of two noisy Sortinos: a tiny development denominator manufactures figures like 890%.
+The <code>keep</code> chip beside it asks the same question as a test: \(P(\text{true forward Sharpe} &gt; \tfrac12 \times
+\text{development Sharpe})\), <code>_psr_retained</code>. 50% is the honest neutral point — a forward Sharpe exactly half
+the development one scores 50% by construction.</p>
+<p><b>Isolated mapping</b> (before Δ, after the gate), <code>degradation_status</code>:</p>
+<table>
+<thead><tr><th>Degradation label</th><th>Isolated Action</th><th>Trigger</th></tr></thead>
+<tbody>
+<tr><td>Monitoring</td><td>Monitor</td><td>&lt; 60 returns or &lt; 90 post-freeze days, or PSR unmeasurable</td></tr>
+<tr><td>Broken (no edge) / Degrading fast</td><td>Regenerate</td><td>forward Sortino &le; 0 <b>or</b> PSR &lt; 0.50</td></tr>
+<tr><td>Unverified (retention unmeasurable)</td><td>Watch</td><td>no usable development Sortino, so the haircut cannot be formed</td></tr>
+<tr><td>Degrading</td><td>Watch</td><td>PSR &lt; 0.80 <b>or</b> haircut &lt; 0.50</td></tr>
+<tr><td>Stable</td><td>Keep</td><td>PSR &ge; 0.80 <b>and</b> haircut &ge; 0.50</td></tr>
+</tbody>
+</table>
+<p>The rolling-window "core" curve and the Mann-Kendall trend are chart context only; they do not drive Action.</p>
+
+<h4 id="delta-pp">Δ and pp/yr — the contribution chip (not ppy)</h4>
+<p>The chip <code>Δ −6.3 pp/yr</code> is <b>not</b> a decay score and <b>not</b> the methodology's <code>ppy</code>
+(periods per year: 365 crypto / 252 stocks, the Sharpe annualisation basis of &sect;7). Two different abbreviations:</p>
+<table>
+<thead><tr><th>Token</th><th>Means</th><th>Where</th></tr></thead>
+<tbody>
+<tr><td><b>pp/yr</b></td><td><b>percentage points</b> of annualised sleeve return</td><td>the Δ chip, this subsection</td></tr>
+<tr><td><b>ppy</b></td><td><b>periods per year</b> (365 or 252)</td><td>&sect;7, Sharpe / Sortino annualisation</td></tr>
+</tbody>
+</table>
+<p><b>Definition.</b> Re-run the production allocator with this committee's vote removed (leave-one-out drop;
+<code>tpi_contribution.contributions</code>, metric <code>d_ann_ret_full</code>) and take the difference:</p>
+<div class="formula">$$ \Delta_i = \mathrm{AnnRet}(\text{sleeve}) - \mathrm{AnnRet}(\text{sleeve without } i) $$</div>
+<p>Displayed as \(\Delta_i \times 100\) with the unit <code>pp/yr</code>. Worked example: <code>Δ −6.3 pp/yr</code> means
+\(\Delta_i = -0.063\) — the sleeve's annualised return is 6.3 percentage points <em>higher</em> if this vote is dropped.
+The committee is costing its seat. The opposite sign, <code>Δ +27.7 pp/yr</code>, means the sleeve loses 27.7 percentage
+points a year without it — the committee is carrying the sleeve.</p>
+<p>Sign convention, stated once: <b>positive Δ = earns its place</b> (the rotation is worse without it);
+<b>negative Δ = costs the sleeve</b> (the rotation is better without it). Noise band
+<code>_CONTRIB_EPS = 0.005</code> = <b>0.5 pp/yr</b> — inside \(\pm 0.5\) pp/yr the isolated mapping is left alone.</p>
+<p><b>Why this exists (measured 2026-09-05).</b> Isolated forward Sortino scored Spearman \(\rho = -0.374\) against
+measured contribution — <em>inverted</em>, not merely weak. The haircut scored \(-0.300\). The reason is structural: a
+committee is scored long-only on its own ratio, but capital is allocated by a round-robin in which a correct
+<b>bearish</b> call still awards a point to the denominator (<code>rotation_tournament.win_scores</code>). PAXGBTC_auto
+had the worst forward Sortino in the book (\(-3.81\)) while being the largest positive contributor (\(+27.7\) pp/yr);
+ETHXRP_auto showed a healthy \(+0.85\) while costing the sleeve \(9.6\) pp/yr. Left alone, the isolated ladder would have
+asked the operator to rebuild 15 committees that together add \(+280\) pp/yr, while leaving the three genuine detractors
+at a mild "Degrading".</p>
+<p><b>What Δ is not.</b> Not a forward test. The full-history number is a current-policy <em>replay</em> (today's
+committees replayed over the available history) — it has the sample size to support a decision (\(n \approx 2439\)),
+which is why the chip is shown during collecting. That does <b>not</b> open the 90-day gate. Read the post-freeze delta
+(<code>d_ret_fwd</code> / <code>d_sortino_fwd</code>) for genuinely-forward contribution evidence; the chip uses
+<code>d_ann_ret_full</code> because that is the number with power. The artifact is computed in the background
+(~2 minutes for the crypto book) and tolerated up to 14 days old; a missing artifact leaves Action on isolated evidence,
+flagged as <code>action_basis=isolated</code> rather than stalling a dashboard render.</p>
+<p>Macro gates (TOTALES / QQQ / PAXG) and currently-muted pairs have no Δ chip: removing a risk gate is a different
+strategy, and a muted pair's delta measures the derived-vote fallback rather than the committee.</p>
+
+<h4>How Action is formed — isolated mapping, then Δ cap</h4>
+<p>Degradation <em>keeps describing the isolated series</em> (hiding a broken forward Sortino would be worse). Action is
+what you act on:</p>
+<ol>
+  <li>If the horizon gate is shut &rarr; Action = <b>Monitor</b>, <code>action_basis=gate</code>. Δ does not override this.</li>
+  <li>Else classify isolated Keep / Watch / Regenerate from PSR, haircut, forward Sortino (table above).</li>
+  <li>Then, if a Δ is on disk and outside the noise band:
+    <ul>
+      <li>Δ &gt; +0.5 pp/yr &rarr; never <b>Regenerate</b> (capped at Watch), <code>action_basis=contribution-positive</code></li>
+      <li>Δ &lt; −0.5 pp/yr &rarr; never <b>Keep</b> (floored at Watch), <code>action_basis=contribution-negative</code></li>
+    </ul>
+  </li>
+</ol>
+<p>So a committee can show Degradation = <em>Broken (no edge)</em> and Action = <em>Watch</em> — that is the PAXGBTC case,
+and it is working as designed. Conversely, Degradation = <em>Stable</em> with a red Δ is floored to Action = <em>Watch</em>:
+it is not allowed to look like a keeper while costing the sleeve.</p>
+
+<h4>When is it bad enough to worry — and when do you actually change it?</h4>
+<table>
+<thead><tr><th>What you see</th><th>Worry?</th><th>Change the TPI?</th></tr></thead>
+<tbody>
+<tr><td><code>collecting · 49/90d</code> + muted oos PSR 48% / HC −2%</td>
+  <td>The preview looks poor, but it is not forward evidence.</td>
+  <td><b>No.</b> Action is Monitor. Wait for 90 post-freeze days.</td></tr>
+<tr><td>Same, plus <code>Δ −6.3 pp/yr</code> (red)</td>
+  <td><b>Yes, about the seat</b> — over full history the sleeve is better without this vote.
+      Not a decay verdict; the 90-day clock is still running.</td>
+  <td><b>Not on this monitor.</b> A large negative Δ is a reason to watch the seat, not a licence
+      to reset the forward clock early. Action stays Monitor until the gate opens; after that it
+      cannot be Keep.</td></tr>
+<tr><td>After 90d: Action = <b>Watch</b></td>
+  <td><b>Yes.</b> Isolated forward is weak/degraded, and/or Δ is the wrong sign.</td>
+  <td>Not yet. It keeps voting. Revisit when Action turns Regenerate, or when you are making a
+      manual book change for independent reasons.</td></tr>
+<tr><td>After 90d: Action = <b>Regenerate</b></td>
+  <td>The isolated forward edge is no longer credibly positive <em>and</em> Δ is not clearly positive.</td>
+  <td><b>Yes — this is the trigger.</b></td></tr>
+<tr><td>After 90d: Action = <b>Keep</b></td>
+  <td>No.</td>
+  <td><b>Leave it.</b></td></tr>
+</tbody>
+</table>
+<p>Report-only: none of these badges gates the live rotation. Every TPI still votes. A false decay alarm must never
+silently reset a clean forward clock (same rule as &sect;14c).</p>
+<p class="tiny muted">Source of truth: <code>tpi_forward_test.py</code> (<code>forward_curve</code>,
+<code>degradation_status</code>, <code>band_psr</code>, <code>band_haircut</code>) and
+<code>tpi_contribution.py</code> (<code>cached_for_committee</code>, metric <code>d_ann_ret_full</code>).
+Dashboard render: <code>dashboard.py</code> <code>_fwd_driver_chips</code> / <code>_degr_cell</code> /
+<code>_action_cell</code>. Constants above are the shipped values as of 2026-09-05; if the code changes, this section
+must change with it.</p>
 
 <h2 class="section" id="structure"><span class="n">15</span>Structural acceptability — time-coherence gates, upstream of every verdict</h2>
 <p><b>Why this layer exists (2026-07, the net-regen lesson):</b> the verdict LABELS quality but never refused a candidate — a TPI with a
@@ -3385,6 +3545,22 @@ compound annual growth rate, the yearly growth pace.</p>
 <table>
 <thead><tr><th>Date</th><th>Change</th><th>Why</th><th>Evidence</th></tr></thead>
 <tbody>
+<tr style="background:#e8f4ff"><td>2026&#8209;09&#8209;05</td>
+  <td><b>&sect;14d — live forward test, Δ (pp/yr), and the operator rule for when to regenerate.</b>
+  Documents the genuine-forward horizon gate (90d / 60 returns), PSR and Sortino haircut, the
+  <code>keep</code> (PSR½) chip, and sleeve contribution Δ. Isolated Action is then capped by Δ:
+  a positive contributor is never auto-Regenerate; a detractor is never Keep. Disambiguates
+  <code>pp/yr</code> (percentage points of annualised sleeve return) from <code>ppy</code>
+  (periods per year). Dashboard Forward / Degradation / Action are one <code>forward_curve()</code>
+  snapshot; look at Action to change a TPI.</td>
+  <td>The isolated forward Sortino scored Spearman ρ = −0.374 against measured leave-one-out
+  contribution — inverted. Without the Δ cap the ladder asked to rebuild 15 committees that
+  together add +280 pp/yr, while the three genuine detractors sat at a mild "Degrading". The
+  Auto-TPI chips had no documented "when is this bad enough?" rule, and Δ/pp were unexplained
+  in this document.</td>
+  <td><code>tpi_forward_test.degradation_status</code> (v9); <code>tpi_contribution.py</code>;
+  coupling probe <code>research/robustness/tpi_system_coupling</code>. Operator surface:
+  <code>dashboard.py</code> Forward / Degradation / Action cells + methodology tab card.</td></tr>
 <tr style="background:#fdf4e3"><td>2026&#8209;07&#8209;18</td>
   <td><b>Assessment fixes &mdash; the holdout now needs a minimum of evidence before it may certify.</b> Lockbox
   certification additionally requires <code>LOCKBOX_CERT_MIN_TRADES</code> (10) <em>and</em> a non-negative SRIC alongside the
@@ -3663,7 +3839,8 @@ here is hidden in a footnote on purpose.</p>
 
 <div class="foot">
   <p>Live verdict: <code>RSPS/fep_robustness.py &middot; fep_verdict()</code> — the single source of truth. Optimizer:
-  <code>RSPS/tpi_autogen.py</code>. Metrics engine: <code>RSPS/backtester.py</code>. The legacy static explainer is preserved at
+  <code>RSPS/tpi_autogen.py</code>. Metrics engine: <code>RSPS/backtester.py</code>. Live forward test / Δ:
+  <code>RSPS/tpi_forward_test.py</code> &middot; <code>RSPS/tpi_contribution.py</code> (&sect;14d). The legacy static explainer is preserved at
   <code>robustness_methodology_legacy.html</code>. Everything interactive on this page runs the production thresholds verbatim; if the code
   changes, this page must change with it.</p>
 </div>
