@@ -168,7 +168,7 @@ canvas{max-width:100%;background:transparent;border-radius:8px}
 </nav>
 <main>
 
-<h1>Robustness &amp; Stability of Auto-Generated TPIs<br/><span class="sub tiny muted">how the principles are defined, and how the optimizer is built to seek them — a living, interactive spec · last updated 2026-10-12</span></h1>
+<h1>Robustness &amp; Stability of Auto-Generated TPIs<br/><span class="sub tiny muted">how the principles are defined, and how the optimizer is built to seek them — a living, interactive spec · last updated 2026-10-13</span></h1>
 <p class="lede">Every knob below is wired to the <em>actual</em> production logic. Drag them and the verdict recomputes exactly the way <code>fep_robustness.fep_verdict()</code> does in the codebase. Nothing here is a mock-up of the math — it <em>is</em> the math.</p>
 
 <div class="card" id="tldr">
@@ -3001,7 +3001,9 @@ components</em> — it is not itself a certified strategy, and it is never count
 <div class="aff"><div class="d">OPEN &middot; flagged 2026-07</div><h4>SMSUNGSKHYNIX carries a hand-forced verdict.</h4>
   <p class="tiny" style="margin:0">Its stored FRAGILE is internally contradictory (<code>trades_ok=True</code> yet reason "too few trades (preserved)") and is not
   reproducible by the current <code>fep_verdict</code> (which would call it BORDERLINE). Preserved untouched pending a conscious decision;
-  it should be regenerated cleanly rather than patched.</p></div>
+  it should be regenerated cleanly rather than patched.
+  <span style="background:#fdf4e3;padding:1px 4px;border-radius:3px">moot 2026-10-13.</span> SK Hynix left the stock universe
+  on 2026-07-02 and Samsung on 2026-10-13, so the pair no longer exists.</p></div>
 
 <!-- ============================ 14 — CLEAN EVIDENCE ============================ -->
 <h2 class="section" id="evidence"><span class="n">14</span>Clean evidence — the lockbox, the trial ledger, and what a verdict may claim</h2>
@@ -3558,6 +3560,20 @@ compound annual growth rate, the yearly growth pace.</p>
 <table>
 <thead><tr><th>Date</th><th>Change</th><th>Why</th><th>Evidence</th></tr></thead>
 <tbody>
+<tr style="background:#e8f4ff"><td>2026&#8209;10&#8209;13</td>
+  <td><b>The stock universe is cut to MSTR, TSLA, NVDA and MU.</b> Samsung (KRX) and Delta Electronics (TWSE) leave the
+  rotation, together with their nine pair committees, presets, reports and refusal entries; the four remaining names keep
+  their six committees, none refused. The stocks Pine script is regenerated (five securities, no FX feeds). The executor
+  trades the same four names and refuses, rather than ignores, a leftover Samsung or Delta position or working order. The
+  stocks forward record restarts on go-live, as the pre-registration requires for a book change, through a record-start
+  date in code (<code>config.SLEEVE_RECORD_START</code>) that floors every anchor.</td>
+  <td>The account could not hold what the backtest held. Taiwan trades in 1,000-share lots (about $55&ndash;65k) against
+  a ~$27.8k account, so every Delta target floored to zero shares and the sleeve sat in cash; Samsung had no won funding
+  path. Both closed ~14 hours before the US-close decision, cost 23&ndash;54 bps a flip against 5.25, and carried all five
+  refused stock committees.</td>
+  <td><code>config.STOCKS</code>; <code>Execution/stocks/run_stocks.py</code>; <code>tpi_forward_test._record_start</code>;
+  <code>test_stock_universe.py</code>; <code>test_sleeve_verdict.py</code> V10; <code>Execution/tests/test_stocks_execution.py</code>
+  (retired-holding guard, real exporter &rarr; real runner on synthetic bars). Not yet re-measured on market data.</td></tr>
 <tr style="background:#e8f4ff"><td>2026&#8209;10&#8209;12</td>
   <td><b>Each sleeve's verdict against its benchmark, pre-registered before the first forward checkpoint.</b> It reads the
   risk-matched excess over BTC / QQQ at quarterly checkpoints from the forward anchor. Losing, z &le; &minus;1.645 (PSR &le; 0.05),
@@ -3821,7 +3837,11 @@ here is hidden in a footnote on purpose.</p>
   muted vote cannot become cash &mdash; it only deletes matchups from one name's scorecard, silencing 4 of DELTA's 5 matchups
   and handing the sleeve to MSTR on an input-order tie-break. So the honest position is: <b>the directive is right and the
   mechanism is wrong.</b> Fix the tie-break and the disenfranchisement asymmetry, or give the sleeve a route to cash; then
-  measure again. Meanwhile the pane's red not-rebuilt warning carries the disclosure that muting was supposed to carry.</p></div>
+  measure again. Meanwhile the pane's red not-rebuilt warning carries the disclosure that muting was supposed to carry.
+  <span style="background:#fdf4e3;padding:1px 4px;border-radius:3px">updated 2026-10-13.</span> Every refused stock
+  committee had a DELTA or Samsung leg, and both names left the universe, so no refused committee votes in the stocks sleeve
+  today. The mechanism problem is unchanged: the next refusal meets the same winner-takes-all sleeve, input-order tie-break
+  and missing cash route, so this item stays open.</p></div>
 
 <div class="aff"><div class="d">OPEN &middot; 2026-07-18 &middot; four shipping indicators fail the new exam</div><h4>The admission exam has no enforcement path, and was never run against the incumbents.</h4>
   <p class="tiny" style="margin:0">The exam screens newcomers for look-ahead, warm-up fabrication and reachability, and its
